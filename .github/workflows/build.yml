@@ -1,12 +1,18 @@
 name: Build Kuk Calendar APK
 
-# Builds the standalone Kuk Calendar Android APK and publishes it to the
-# "latest" release. The repo keeps only pubspec.yaml + lib/; the native
-# android/ scaffolding is generated fresh by `flutter create` here.
+# Builds the standalone Kuk Calendar Android APK + Play Store AAB and (on main)
+# publishes them to the "latest" release. The repo keeps only pubspec.yaml +
+# lib/ + assets/; the native android/ scaffolding is generated fresh by
+# `flutter create` here.
+#
+# Release signing: when the four ANDROID_* keystore secrets are set the APK/AAB
+# are signed with the upload keystore (Play-ready). Without them the build
+# still succeeds but is debug-signed (installable for testing, NOT uploadable
+# to Play). Generate a keystore with the "Kuk Calendar keystore" workflow.
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
 
 permissions:
   contents: write
@@ -27,7 +33,7 @@ jobs:
           flutter-version: "3.24.5"
           channel: stable
 
-      - name: Generate Android scaffolding (keeps lib/ + pubspec)
+      - name: Generate Android scaffolding (keeps lib/ + pubspec + assets)
         run: flutter create --org com.kuklabs --project-name kukcalendar --platforms=android .
 
       - name: Pin Android compileSdk 35
@@ -44,21 +50,92 @@ jobs:
       - name: Pub get
         run: flutter pub get
 
+      - name: Generate app launcher icon (KukLabs "K")
+        run: dart run flutter_launcher_icons
+
+      - name: Configure release signing (only if keystore secrets are present)
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release keystore secrets not set — the AAB will be DEBUG-signed and NOT uploadable to Play. Run the 'Kuk Calendar keystore' workflow once, then add ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD repo secrets."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          # Inject a release signingConfig into the flutter-generated app/build.gradle.
+          python3 - <<'PY'
+          import re
+          p = "android/app/build.gradle"
+          s = open(p).read()
+          loader = (
+            "def kukKeystoreProps = new Properties()\n"
+            "def kukKeystoreFile = rootProject.file('key.properties')\n"
+            "if (kukKeystoreFile.exists()) { kukKeystoreFile.withInputStream { kukKeystoreProps.load(it) } }\n\n"
+          )
+          if "kukKeystoreProps" not in s:
+              # Insert the loader JUST BEFORE `android {` — NOT at the top of the
+              # file, because Flutter's build.gradle starts with a `plugins {}`
+              # block and Gradle forbids any statement before it.
+              s = re.sub(r"\nandroid\s*\{", "\n" + loader + "android {", s, count=1)
+          sign_block = (
+            "    signingConfigs {\n"
+            "        release {\n"
+            "            if (kukKeystoreProps['storeFile']) {\n"
+            "                storeFile file(kukKeystoreProps['storeFile'])\n"
+            "                storePassword kukKeystoreProps['storePassword']\n"
+            "                keyAlias kukKeystoreProps['keyAlias']\n"
+            "                keyPassword kukKeystoreProps['keyPassword']\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+          )
+          if "signingConfigs {" not in s:
+              s = re.sub(r"(\n\s*buildTypes\s*\{)", "\n" + sign_block + r"\1", s, count=1)
+          # Point the release build at the release signing config (handles `=` or not).
+          s = re.sub(r"signingConfig\s*=?\s*signingConfigs\.debug", "signingConfig signingConfigs.release", s)
+          open(p, "w").write(s)
+          print("Injected release signingConfig into", p)
+          PY
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "Release signing configured."
+
       - name: Build release APK
         run: flutter build apk --release --build-number=${{ github.run_number }}
 
-      - name: Stage APK
+      - name: Build release App Bundle (AAB for Play Store)
+        run: flutter build appbundle --release --build-number=${{ github.run_number }}
+
+      - name: Stage APK + AAB
         run: |
           mkdir -p out
           cp build/app/outputs/flutter-apk/app-release.apk out/KukCalendar.apk
           cp build/app/outputs/flutter-apk/app-release.apk "out/KukCalendar-r${{ github.run_number }}.apk"
+          # Play Store App Bundle. Suffix tells you if it's release-signed or debug.
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            cp "$AAB" "out/KukCalendar-PlayStore-r${{ github.run_number }}-signed.aab"
+          else
+            cp "$AAB" "out/KukCalendar-PlayStore-r${{ github.run_number }}-UNSIGNED-debug.aab"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: kukcalendar-apk
-          path: out/KukCalendar-r${{ github.run_number }}.apk
+          name: kukcalendar-build
+          path: out/*
 
       - name: Publish to "latest" release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
@@ -67,6 +144,6 @@ jobs:
             Kuk Calendar for Android — standalone personal calendar, offline-first,
             optional sync with your KukLabs account (same login as KukTask/KukKeep).
             Install **KukCalendar-r${{ github.run_number }}.apk**.
-          files: |
-            out/KukCalendar.apk
-            out/KukCalendar-r${{ github.run_number }}.apk
+            The `KukCalendar-PlayStore-*.aab` bundle is for the Play Store
+            (upload only the `-signed` variant).
+          files: out/*
