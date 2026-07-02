@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
 import 'cal_sync.dart';
+import 'notifications.dart';
 import 'screens/calendar_screen.dart';
 
 /// Kuk Calendar — standalone personal calendar. Offline-first; optionally signs
@@ -11,6 +12,9 @@ void main() async {
   try {
     await CalSync.instance.load();
   } catch (_) {/* offline / not signed in */}
+  // Fire-and-forget: sets up the notification channel/permission and
+  // re-schedules event reminders (e.g. after a reboot cleared the alarms).
+  Reminders.rescheduleAll();
   runApp(const KukCalendarApp());
 }
 

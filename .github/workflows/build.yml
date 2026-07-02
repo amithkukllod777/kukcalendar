@@ -47,6 +47,56 @@ jobs:
           sed -i -E 's/android:label="[^"]*"/android:label="Kuk Calendar"/' android/app/src/main/AndroidManifest.xml
           sed -i -E 's/applicationId(\s*=)?\s*"[^"]*"/applicationId = "com.kuklabs.calendar"/' android/app/build.gradle
 
+      - name: Notification permissions + receivers + desugaring
+        # flutter_local_notifications needs: runtime notification permission
+        # (Android 13+), boot receivers so scheduled reminders survive a
+        # restart, exact-alarm permissions (calendar apps qualify for
+        # USE_EXACT_ALARM), and Java core-library desugaring. The android/
+        # folder is generated fresh above, so inject these on every build.
+        run: |
+          python3 - <<'PY'
+          import re
+          mp = "android/app/src/main/AndroidManifest.xml"
+          m = open(mp).read()
+          perms = (
+            '    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n'
+            '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n'
+            '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32"/>\n'
+            '    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n'
+          )
+          if "POST_NOTIFICATIONS" not in m:
+              m = m.replace("<application", perms + "    <application", 1)
+          recv = (
+            '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n'
+            '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n'
+            '            <intent-filter>\n'
+            '                <action android:name="android.intent.action.BOOT_COMPLETED"/>\n'
+            '                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>\n'
+            '                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>\n'
+            '            </intent-filter>\n'
+            '        </receiver>\n'
+          )
+          if "ScheduledNotificationReceiver" not in m:
+              m = m.replace("</application>", recv + "    </application>", 1)
+          open(mp, "w").write(m)
+          print("AndroidManifest.xml: permissions + receivers injected")
+
+          gp = "android/app/build.gradle"
+          g = open(gp).read()
+          if "coreLibraryDesugaringEnabled" not in g:
+              g, n = re.subn(r"(compileOptions\s*\{)", r"\1\n        coreLibraryDesugaringEnabled true", g, count=1)
+              if n == 0:
+                  raise SystemExit("ERROR: no compileOptions block in app/build.gradle")
+          if "desugar_jdk_libs" not in g:
+              dep = "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'"
+              if re.search(r"\ndependencies\s*\{", g):
+                  g = re.sub(r"(\ndependencies\s*\{)", r"\1\n" + dep, g, count=1)
+              else:
+                  g += "\ndependencies {\n" + dep + "\n}\n"
+          open(gp, "w").write(g)
+          print("app/build.gradle: desugaring enabled")
+          PY
+
       - name: Pub get
         run: flutter pub get
 

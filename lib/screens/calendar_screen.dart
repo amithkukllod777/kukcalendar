@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
 import '../app_info.dart';
 import '../cal_sync.dart';
+import '../notifications.dart';
 import 'calendar_tasks_screen.dart';
 import 'calendar_login_screen.dart';
 
@@ -280,6 +281,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final list = await AppDb.instance
           .aggregateEvents(from: start, to: end, eventsOnly: kStandaloneCalendar);
       if (mounted) setState(() { _events = list; _loading = false; });
+      // Keep OS reminder notifications in sync with the (possibly changed)
+      // event set — no-op when nothing changed, so safe on every navigation.
+      Reminders.rescheduleAll();
     } catch (_) {
       if (mounted) setState(() { _events = []; _loading = false; });
     }
