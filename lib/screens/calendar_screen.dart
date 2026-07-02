@@ -5,6 +5,7 @@ import '../db_calendar.dart';
 import '../money.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
+import '../app_info.dart';
 import '../cal_sync.dart';
 import 'calendar_tasks_screen.dart';
 import 'calendar_login_screen.dart';
@@ -117,6 +118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final Set<String> _hidden = {}; // hidden source keys (KukBook overlay only)
 
   bool _syncing = false;
+  String _version = '';
 
   @override
   void initState() {
@@ -126,6 +128,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _load();
     _loadLists();
     _initSync();
+    appVersionString().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
   }
 
   Future<void> _initSync() async {
@@ -489,8 +494,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ListTile(
                   leading: const Icon(Icons.cloud_sync_outlined,
                       color: AppColors.primary),
-                  title: const Text('Sign in to sync'),
-                  subtitle: const Text('Same account as KukTask / KukKeep'),
+                  title: const Text('Sign in or create account'),
+                  subtitle: const Text('Back up & sync your calendar'),
                   onTap: () {
                     Navigator.pop(context);
                     _signIn();
@@ -595,6 +600,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       builder: (_) => kukCalendarFullAppBuilder!()));
                 },
               ),
+            if (kStandaloneCalendar && _version.isNotEmpty) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                child: Text('Kuk Calendar $_version',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textSecondary)),
+              ),
+            ],
           ],
         ),
       ),
