@@ -64,12 +64,17 @@ Install `KukCalendar-r1.apk` from
    it disappears from the web calendar (tombstone propagation).
 9. **Session expiry**: after a 401 the app should return to the signed-out
    state with "Session expired — please sign in again."
+10. **Reminder notification**: create an event a few minutes from now with a
+    1-minute reminder → allow notifications when prompted → an OS
+    notification fires before the event (also survives an app kill; after a
+    phone reboot it re-arms on next app open).
 
 ## Known gaps (next work items)
 
-- Reminders are stored but **no OS notification fires yet**
-  (`flutter_local_notifications` + `timezone` pending).
 - Tasks are local-only (events sync; tasks don't).
-- APK is debug-signed; Play-Store keystore signing pending.
+- Play-Store signing: the build workflow now produces an AAB and signs it
+  when the `ANDROID_*` keystore secrets are set (generate the keystore once
+  via the "Kuk Calendar keystore" workflow — see its header for the exact
+  secret names). Until the secrets are added, APK/AAB stay debug-signed.
 - No drag-to-move/resize, swipe navigation, advanced recurrence
   (every-N / end-date / edit-this-vs-all), or timezone support.

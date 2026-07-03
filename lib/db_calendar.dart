@@ -339,6 +339,66 @@ extension CalendarStore on AppDb {
     }
   }
 
+  /// Upcoming reminder occurrences (next [days] days) for events that have a
+  /// reminder set — used by Reminders to (re)schedule OS notifications.
+  /// Each entry: nid (stable 31-bit notification id), title, body,
+  /// fireAt (DateTime = event start − reminder_min; all-day events count as
+  /// starting at 09:00).
+  Future<List<Map<String, dynamic>>> getUpcomingReminders(
+      {int days = 30, int max = 48}) async {
+    final d = await db;
+    await _ensureCalendarTable(d);
+    final now = DateTime.now();
+    final from = DateTime(now.year, now.month, now.day);
+    final to = from.add(Duration(days: days));
+    List<Map<String, Object?>> rows;
+    try {
+      rows = await d.query('calendar_events',
+          where: '(deleted IS NULL OR deleted = 0) AND reminder_min >= 0');
+    } catch (_) {
+      return const [];
+    }
+    final out = <Map<String, dynamic>>[];
+    for (final r in rows) {
+      final remind = (r['reminder_min'] as int?) ?? -1;
+      if (remind < 0) continue;
+      final base = _calParseDate(r['start_date']);
+      final rec = (r['recurrence'] as String?) ?? 'none';
+      final occs = (rec == 'none' || rec.isEmpty)
+          ? [base]
+          : _expandOccurrences(base, rec, from, to);
+      final allDay = ((r['all_day'] as int?) ?? 1) == 1;
+      final st = (r['start_time'] as String?) ?? '';
+      var hh = 9, mm = 0; // all-day events remind relative to 09:00
+      if (!allDay && st.contains(':')) {
+        final p = st.split(':');
+        hh = int.tryParse(p[0]) ?? 9;
+        mm = int.tryParse(p[1]) ?? 0;
+      }
+      final loc = (r['location'] as String?) ?? '';
+      for (final occ in occs) {
+        if (occ.isBefore(from) || occ.isAfter(to)) continue;
+        final start = DateTime(occ.year, occ.month, occ.day, hh, mm);
+        final fireAt = start.subtract(Duration(minutes: remind));
+        if (!fireAt.isAfter(now)) continue;
+        out.add({
+          'nid': '${r['id']}-${_calDateKey(occ)}'.hashCode & 0x7fffffff,
+          'title': ((r['title'] as String?)?.isNotEmpty ?? false)
+              ? r['title'] as String
+              : 'Event',
+          'body': [
+            allDay ? 'All day' : 'Starts at $st',
+            if (loc.isNotEmpty) loc,
+          ].join(' · '),
+          'fireAt': fireAt,
+        });
+      }
+    }
+    out.sort((a, b) =>
+        (a['fireAt'] as DateTime).compareTo(b['fireAt'] as DateTime));
+    return out.take(max).toList();
+  }
+
   // ─── Tasks (Google-Tasks-style to-dos) ────────────────────────────────────
   Future<void> _ensureTasks(Database d) async {
     await d.execute('''

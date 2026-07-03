@@ -1,0 +1,94 @@
+import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
+import 'db.dart';
+import 'db_calendar.dart';
+
+/// OS reminder notifications for calendar events. Best-effort by design: any
+/// failure (permission denied, plugin unavailable) is swallowed so reminders
+/// can never break the calendar itself.
+///
+/// Scheduling model: rather than tracking per-event alarm diffs, we cancel and
+/// re-schedule the next `getUpcomingReminders()` batch (30 days / 48 alarms)
+/// whenever the event set changes — a cheap signature check makes repeat calls
+/// (every screen `_load()`) a no-op.
+class Reminders {
+  Reminders._();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _inited = false;
+  static String? _lastSignature; // null = nothing scheduled yet
+
+  static Future<void> init() async {
+    if (_inited) return;
+    try {
+      // Alarms fire at an absolute instant, so the tz label doesn't matter —
+      // TZDateTime.from() preserves the instant. No device-timezone lookup.
+      tzdata.initializeTimeZones();
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await _plugin
+          .initialize(const InitializationSettings(android: android));
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      _inited = true;
+    } catch (_) {/* notifications unavailable — the app still works */}
+  }
+
+  static const NotificationDetails _details = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'kukcal_reminders',
+      'Event reminders',
+      channelDescription: 'Reminders for your calendar events',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+  );
+
+  /// Re-sync scheduled notifications with the current events. Cheap when
+  /// nothing changed; call after any save/delete/sync and on app start.
+  static Future<void> rescheduleAll() async {
+    if (!_inited) await init();
+    if (!_inited) return;
+    try {
+      final items = await AppDb.instance.getUpcomingReminders();
+      final sig =
+          items.map((e) => '${e['nid']}@${e['fireAt']}').join('|');
+      if (sig == _lastSignature) return;
+      _lastSignature = sig;
+      await _plugin.cancelAll();
+      for (final e in items) {
+        final when =
+            tz.TZDateTime.from(e['fireAt'] as DateTime, tz.UTC);
+        try {
+          await _plugin.zonedSchedule(
+            e['nid'] as int,
+            e['title'] as String,
+            e['body'] as String,
+            when,
+            _details,
+            androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+          );
+        } on PlatformException {
+          // Exact alarms not permitted on this device → near-time is fine.
+          try {
+            await _plugin.zonedSchedule(
+              e['nid'] as int,
+              e['title'] as String,
+              e['body'] as String,
+              when,
+              _details,
+              androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+              uiLocalNotificationDateInterpretation:
+                  UILocalNotificationDateInterpretation.absoluteTime,
+            );
+          } catch (_) {}
+        } catch (_) {}
+      }
+    } catch (_) {/* never break the app for reminders */}
+  }
+}

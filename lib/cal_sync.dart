@@ -71,18 +71,33 @@ class CalSync {
     return entry?['result']?['data']?['json'];
   }
 
+  // Network failures (no internet / DNS / timeout) surface as a short, human
+  // message instead of a raw DioException dump.
+  static const String _offlineMsg =
+      'Could not reach the server. Please check your internet connection and try again.';
+
   Future<dynamic> _query(String proc, [Map<String, dynamic>? input]) async {
     final payload = Uri.encodeComponent(jsonEncode({'0': {'json': input}}));
     final uri = Uri.parse('$base/api/trpc/$proc?batch=1&input=$payload');
-    final res = await _dio.getUri(uri, options: Options(headers: _headers));
+    final Response res;
+    try {
+      res = await _dio.getUri(uri, options: Options(headers: _headers));
+    } on DioException {
+      throw Exception(_offlineMsg);
+    }
     return _handle(res);
   }
 
   Future<dynamic> _mutate(String proc, Map<String, dynamic> input) async {
     final uri = Uri.parse('$base/api/trpc/$proc?batch=1');
-    final res = await _dio.postUri(uri,
-        data: jsonEncode({'0': {'json': input}}),
-        options: Options(headers: _headers));
+    final Response res;
+    try {
+      res = await _dio.postUri(uri,
+          data: jsonEncode({'0': {'json': input}}),
+          options: Options(headers: _headers));
+    } on DioException {
+      throw Exception(_offlineMsg);
+    }
     return _handle(res);
   }
 
@@ -125,6 +140,40 @@ class CalSync {
     userName = (data['user']?['name'] ?? '').toString();
     await _save();
     await _ensureCompany();
+  }
+
+  /// Create a new KukLabs account (step 1) — the server emails a 6-digit
+  /// verification code to [email]; complete with [verifyOtp].
+  Future<void> register({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    await _mutate('auth.directRegister', {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'password': password,
+      'acceptedTerms': true,
+    });
+  }
+
+  /// Complete sign-up (step 2): verify the emailed code. On success the
+  /// account is active and we are signed in (token + workspace ready).
+  Future<void> verifyOtp(String email, String otp) async {
+    final data = await _mutate('auth.verifyOtp', {'email': email, 'otp': otp});
+    final token = data is Map ? data['token'] : null;
+    if (token == null) throw Exception('Verification failed');
+    _token = token.toString();
+    userName = (data['user']?['name'] ?? '').toString();
+    await _save();
+    await _ensureCompany();
+  }
+
+  /// Re-send the sign-up verification code.
+  Future<void> resendOtp(String email) async {
+    await _mutate('auth.resendOtp', {'email': email});
   }
 
   String _slugify(String name) {
