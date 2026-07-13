@@ -34,3 +34,9 @@ Required work:
 The visual reference is not KukKeep-only. It is mandatory for this app and every Kuklabs app.
 
 Only product icon, product name, tagline and approved accent colour may change.
+
+## Version rule
+
+- Do not display app version, build number, release channel or commit hash on Login / Sign Up.
+- The auth screen ends with `Powered by Kuklabs`.
+- Display version only at the bottom of `Profile → About this app`.

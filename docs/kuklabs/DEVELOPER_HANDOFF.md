@@ -88,3 +88,13 @@ src/auth/identityDetection.ts
 - [ ] Version/build appears in About
 - [ ] Mobile, tablet and desktop layouts tested
 - [ ] Screen reader and keyboard focus tested
+
+## Version placement
+
+The login/signup implementation must not show app version/build information.
+
+Version/build appears only as the final muted footer in:
+
+```text
+Profile → About this app
+```

@@ -886,6 +886,41 @@ Version and build
 
 ---
 
+## App version placement — mandatory
+
+Do not show app version, build number, release channel, commit hash or environment name on:
+
+- Login
+- Sign Up
+- OTP verification
+- Forgot Password
+- Reset Password
+- Welcome/onboarding
+- Splash screen
+
+The authentication screen ends with:
+
+```text
+Terms of Use and Privacy Policy
+Powered by Kuklabs
+```
+
+No version text may appear below or near `Powered by Kuklabs`.
+
+Show the app version only in:
+
+```text
+Profile → About this app → bottom-most muted footer
+```
+
+Approved format:
+
+```text
+Version 2.4.1 (Build 24107)
+```
+
+The version footer is the final informational item at the bottom of Profile/Settings. Place it after all normal settings, About/legal/support, Sign out and Danger Zone blocks. Use muted centre-aligned text. Do not use the product accent colour. Normal production users must not see commit hashes, environment labels or internal release channels.
+
 # 12. App version, build and release content
 
 ## 12.1 Versioning

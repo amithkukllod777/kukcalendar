@@ -7,6 +7,9 @@
   "accentColor": "#2868F0",
   "authScreenRequired": true,
   "referenceImage": "APPROVED_LOGIN_REFERENCE.png",
+  "showVersionOnAuthScreen": false,
+  "authScreenLastElement": "Powered by Kuklabs",
+  "versionLocation": "Drawer footer today (calendar_screen.dart) — Profile > About this app once Profile page ships",
   "allowedChanges": [
     "product icon",
     "product name",

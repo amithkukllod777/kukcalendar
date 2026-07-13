@@ -72,3 +72,15 @@ Every agent must:
 4. Change only the product icon, name, tagline and accent colour
 
 A documentation-only change is incomplete.
+
+## Version placement correction in V4
+
+The app version is never shown on Login, Sign Up, OTP, password recovery, onboarding or splash.
+
+The authentication page ends with `Powered by Kuklabs`.
+
+Version/build is shown only as the bottom-most muted footer in:
+
+```text
+Profile → About this app
+```

@@ -13,12 +13,16 @@ docs/kuklabs/KUKLABS_DESIGN_TOKENS.json
 docs/kuklabs/KUKLABS_AUTH_CONTENT_TEMPLATES.json
 docs/kuklabs/APPROVED_LOGIN_REFERENCE.png
 docs/kuklabs/CURRENT_PRODUCT_LOGIN_CONFIG.json   — this app's filled-in values
+docs/kuklabs/APP_VERSION_DISPLAY_POLICY.md       — version NEVER on auth screens
 ```
 
-Pack version: V3 (`docs/kuklabs/KUKLABS_DESIGN_TOKENS.json` → `"version": "3.0.0"`). V3 is a
-JSON-schema reorganization of V2's identical values (same 58px controls, 420 maxWidth,
-24 welcome, etc.) — `lib/kuklabs/auth_tokens.dart` already matches; no token/content
-values changed when the pack was refreshed.
+Pack version: V4 (`docs/kuklabs/KUKLABS_DESIGN_TOKENS.json` → `"version": "4.0.0"`). V2→V4 are
+JSON-schema reorganizations of the same control sizes (58px controls, 420 maxWidth, 24 welcome,
+etc.) — `lib/kuklabs/auth_tokens.dart` already matches; no token/content values changed. V4 adds
+one binding policy: version/build must never render on Login/Sign Up/OTP/Forgot/Reset/Welcome —
+only in Profile → About this app (today: the drawer footer in `calendar_screen.dart`, since
+there is no Profile page yet). `calendar_login_screen.dart` already complies (it has never shown
+a version string).
 
 ## Non-negotiable rules
 - One Kuklabs Account (shared `auth.*` on kuklabs.com); no separate user/
@@ -31,7 +35,9 @@ values changed when the pack was refreshed.
   Google "G" logo.
 - Never show raw server text / JSON / stack traces — always map through
   `lib/kuklabs/auth_messages.dart` (the approved friendly catalogue).
-- Login and Sign Up share one shell; version shown as `Version x.y.z (Build n)`.
+- Login and Sign Up share one shell. Version is **never** shown on any auth screen — see
+  `docs/kuklabs/APP_VERSION_DISPLAY_POLICY.md`; format `Version x.y.z (Build n)` applies only
+  to Profile → About this app / the drawer footer.
 
 ## Only these may change per product (from `lib/kuklabs/product_brand.dart`)
 - product icon · product name · tagline · approved accent colour · product-

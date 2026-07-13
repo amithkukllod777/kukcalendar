@@ -1,13 +1,10 @@
 {
   "productName": "{PRODUCT_NAME}",
   "productId": "{PRODUCT_ID}",
-  "shortName": "{PRODUCT_SHORT_NAME}",
   "productIconPath": "{PRODUCT_ICON_PATH}",
   "tagline": "{PRODUCT_TAGLINE}",
   "accentColor": "{PRODUCT_ACCENT}",
-  "accentColorDark": "{PRODUCT_ACCENT_DARK}",
   "packageId": "com.kuklabs.{product}",
-  "subdomain": "{product}.kuklabs.com",
   "assetPrefix": "{product}_",
   "termsUrl": "https://kuklabs.com/terms",
   "privacyUrl": "https://kuklabs.com/privacy",

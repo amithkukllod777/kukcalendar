@@ -96,3 +96,11 @@ Reject any change that:
 - removes accessibility labels
 - breaks one-screen auth behaviour on standard phones
 - hides legal links or Powered by Kuklabs
+
+## Version-display restriction
+
+Never show version/build information on Login, Sign Up, OTP, password recovery, onboarding or splash screens.
+
+The auth screen ends with `Powered by Kuklabs`.
+
+Show `Version x.y.z (Build n)` only as the bottom-most muted footer of `Profile → About this app`.
