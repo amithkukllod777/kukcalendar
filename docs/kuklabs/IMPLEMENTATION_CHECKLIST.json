@@ -1,0 +1,36 @@
+{
+  "packVersion": "2.0.0",
+  "requiredFiles": [
+    "CLAUDE.md",
+    "KUKLABS_MASTER_STANDARD.md",
+    "KUKLABS_DESIGN_TOKENS.json",
+    "KUKLABS_BRAND_CONFIG_TEMPLATE.json",
+    "KUKLABS_AUTH_CONTENT_TEMPLATES.json",
+    "APPROVED_LOGIN_REFERENCE.png",
+    "DEVELOPER_HANDOFF.md",
+    "REPO_INTEGRATION_GUIDE.md"
+  ],
+  "mandatoryChecks": {
+    "identity": [
+      "shared AuthKit",
+      "shared Kuklabs user ID",
+      "no separate auth database",
+      "no separate Firebase/Google Cloud project"
+    ],
+    "ui": [
+      "Inter font",
+      "shared design tokens",
+      "approved auth shell",
+      "official Google logo",
+      "friendly error messages",
+      "profile structure",
+      "version/build display"
+    ],
+    "mobile": [
+      "one-screen normal state",
+      "keyboard-safe fallback scrolling",
+      "E.164 phone number",
+      "country selector behaviour"
+    ]
+  }
+}

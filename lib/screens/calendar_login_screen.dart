@@ -3,20 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../cal_sync.dart';
 import '../google_auth.dart';
+import '../kuklabs/auth_messages.dart';
+import '../kuklabs/auth_tokens.dart';
+import '../kuklabs/product_brand.dart';
 import '../theme/app_theme.dart';
 
 enum _Mode { signIn, signUp, verify }
 
-/// Kuklabs standard authentication screen (KUKLABS_IDENTITY.md §15).
+/// Kuklabs universal authentication screen (docs/kuklabs/ — one shared shell for
+/// every Kuklabs app; matches APPROVED_LOGIN_REFERENCE.png and the exact sizes
+/// in KUKLABS_DESIGN_TOKENS.json). Only the product icon, name, tagline and
+/// accent are product-specific (from ProductBrand); layout, content, Google
+/// branding, typography and error policy are shared and must not be forked.
 ///
-/// Same layout as every Kuklabs app (KukKeep / KukTask / …): product icon →
-/// "Welcome to" → product wordmark → tagline → Login / Sign Up tabs → form →
-/// primary action → OR → Continue with Google → Terms & Privacy → Powered by
-/// Kuklabs. Only the product icon, name, tagline and accent change per app.
-///
-/// Identity is the ONE Kuklabs Account (shared `auth.*` endpoints on
-/// kuklabs.com — the same account as KukTask / KukKeep). This screen never
-/// creates a separate user store; sign-up is fully in-app via email OTP.
+/// Identity is the ONE Kuklabs Account (shared auth.* endpoints on kuklabs.com);
+/// no separate auth/user store. Google uses the SSO deep-link flow.
 class CalendarLoginScreen extends StatefulWidget {
   const CalendarLoginScreen({super.key});
   @override
@@ -25,7 +26,7 @@ class CalendarLoginScreen extends StatefulWidget {
 
 class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   final _name = TextEditingController();
-  final _identity = TextEditingController(); // email (login) / email (signup)
+  final _identity = TextEditingController();
   final _phone = TextEditingController();
   final _password = TextEditingController();
   final _otp = TextEditingController();
@@ -37,15 +38,10 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   String? _notice;
 
   late final TapGestureRecognizer _termsTap =
-      TapGestureRecognizer()..onTap = () => _openUrl(_termsUrl);
+      TapGestureRecognizer()..onTap = () => _openUrl(ProductBrand.termsUrl);
   late final TapGestureRecognizer _privacyTap =
-      TapGestureRecognizer()..onTap = () => _openUrl(_privacyUrl);
+      TapGestureRecognizer()..onTap = () => _openUrl(ProductBrand.privacyUrl);
 
-  static const String _termsUrl = 'https://kuklabs.com/terms';
-  static const String _privacyUrl = 'https://kuklabs.com/privacy';
-  // Separate-repo apps may hand off to the hosted Kuklabs login for Google
-  // (KUKLABS_IDENTITY.md §1). Native in-app Google (deep-link token return) is
-  // a follow-up infra task; until then this opens the shared account login.
   static const String _hostedLoginUrl = 'https://kuklabs.com/login';
 
   @override
@@ -69,56 +65,70 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     try {
       await action();
     } catch (e) {
-      if (mounted) {
-        setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
-      }
+      // Hard rule: raw server text never reaches the UI.
+      if (mounted) setState(() => _error = AuthMessages.friendly(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
+  bool _looksLikeEmail(String s) => s.contains('@') && s.contains('.');
+  bool _strongPassword(String s) =>
+      s.length >= 8 && RegExp(r'[A-Za-z]').hasMatch(s) && RegExp(r'\d').hasMatch(s);
+
   Future<void> _signIn() async {
-    if (_identity.text.trim().isEmpty || _password.text.isEmpty) {
-      setState(() => _error = 'Enter your email and password');
+    final id = _identity.text.trim();
+    if (id.isEmpty) {
+      setState(() => _error = AuthMessages.emptyIdentity);
+      return;
+    }
+    if (_password.text.isEmpty) {
+      setState(() => _error = AuthMessages.emptyPassword);
       return;
     }
     await _run(() async {
-      await CalSync.instance.login(_identity.text.trim(), _password.text);
+      await CalSync.instance.login(id, _password.text);
       if (mounted) Navigator.pop(context, true);
     });
   }
 
   Future<void> _signUp() async {
     if (_name.text.trim().length < 2) {
-      setState(() => _error = 'Enter your name');
+      setState(() => _error = 'Enter your full name.');
       return;
     }
-    if (_identity.text.trim().isEmpty ||
-        _phone.text.trim().isEmpty ||
-        _password.text.isEmpty) {
-      setState(() => _error = 'Fill in all the fields');
+    final id = _identity.text.trim();
+    if (id.isEmpty) {
+      setState(() => _error = AuthMessages.emptyIdentity);
       return;
     }
-    if (_password.text.length < 6) {
-      setState(() => _error = 'Password must be at least 6 characters');
+    if (!_looksLikeEmail(id)) {
+      setState(() => _error = AuthMessages.invalidEmail);
+      return;
+    }
+    if (_phone.text.trim().isEmpty) {
+      setState(() => _error = AuthMessages.invalidPhone);
+      return;
+    }
+    if (!_strongPassword(_password.text)) {
+      setState(() => _error = AuthMessages.weakPassword);
       return;
     }
     if (!_acceptedTerms) {
-      setState(() => _error =
-          'Please confirm you are 18+ and accept the Terms & Privacy Policy');
+      setState(() => _error = AuthMessages.termsRequired);
       return;
     }
     await _run(() async {
       await CalSync.instance.register(
         name: _name.text.trim(),
-        email: _identity.text.trim(),
+        email: id,
         phone: _phone.text.trim(),
         password: _password.text,
       );
       if (mounted) {
         setState(() {
           _mode = _Mode.verify;
-          _notice = 'We emailed a 6-digit code to ${_identity.text.trim()}';
+          _notice = 'We emailed a 6-digit code to $id';
         });
       }
     });
@@ -126,7 +136,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
 
   Future<void> _verify() async {
     if (_otp.text.trim().length != 6) {
-      setState(() => _error = 'Enter the 6-digit code from your email');
+      setState(() => _error = AuthMessages.otpInvalid);
       return;
     }
     await _run(() async {
@@ -138,7 +148,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   Future<void> _resend() async {
     await _run(() async {
       await CalSync.instance.resendOtp(_identity.text.trim());
-      if (mounted) setState(() => _notice = 'A new code has been sent');
+      if (mounted) setState(() => _notice = 'A new code has been sent.');
     });
   }
 
@@ -154,39 +164,46 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         _notice = null;
       });
 
-  // ── Building blocks ─────────────────────────────────────────────────────
+  // ── Building blocks (token-exact) ───────────────────────────────────────
   InputDecoration _dec(String hint, IconData icon, {Widget? suffix}) =>
       InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.placeholder, fontSize: 16),
+        hintStyle: const TextStyle(color: AppColors.placeholder, fontSize: AuthTokens.inputTextSize),
         prefixIcon: Icon(icon, size: 22, color: AppColors.textMuted),
         suffixIcon: suffix,
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        isCollapsed: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
           borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
       );
 
-  Widget _identityField() => TextField(
+  Widget _field(TextField child) =>
+      SizedBox(height: AuthTokens.inputHeight, child: child);
+
+  Widget _identityField() => _field(TextField(
         controller: _identity,
         keyboardType: TextInputType.emailAddress,
         autocorrect: false,
-        style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+        textAlignVertical: TextAlignVertical.center,
+        style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
         decoration: _dec('Mobile Number or Email', Icons.smartphone_outlined),
-      );
+      ));
 
-  Widget _passwordField({required VoidCallback onSubmit}) => TextField(
+  Widget _passwordField({required VoidCallback onSubmit}) => _field(TextField(
         controller: _password,
         obscureText: _obscure,
-        style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+        textAlignVertical: TextAlignVertical.center,
+        style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
         onSubmitted: (_) => onSubmit(),
         decoration: _dec(
           'Password',
@@ -197,25 +214,27 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             onPressed: () => setState(() => _obscure = !_obscure),
           ),
         ),
-      );
+      ));
 
   Widget _primaryButton(String label, VoidCallback onTap) => SizedBox(
-        height: 54,
+        height: AuthTokens.buttonHeight,
         child: FilledButton(
           onPressed: _busy ? null : onTap,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.primary,
             disabledBackgroundColor: AppColors.primary.withOpacity(0.6),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
           ),
           child: _busy
               ? const SizedBox(
-                  width: 22,
-                  height: 22,
+                  width: 22, height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
               : Text(label,
                   style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w600, color: Colors.white)),
+                      fontSize: AuthTokens.primaryButtonTextSize,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white)),
         ),
       );
 
@@ -226,7 +245,6 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         child: InkWell(
           onTap: _busy ? null : () => _switchMode(m),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -239,7 +257,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: AuthTokens.tabLabelSize,
                 fontWeight: FontWeight.w600,
                 color: active ? AppColors.primary : AppColors.textSecondary,
               ),
@@ -250,37 +268,37 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     }
 
     return Container(
+      height: AuthTokens.tabsHeight,
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(children: [tab('Login', _Mode.signIn), tab('Sign Up', _Mode.signUp)]),
     );
   }
 
-  // Continue with Google (Kuklabs SSO deep-link flow). Rendered only when the
-  // server reports OAuth is configured, so it never shows as a dead button;
-  // tapping opens the browser and the deep-link handler finishes sign-in.
-  Widget _googleButton() => FutureBuilder<bool>(
+  // Continue with Google (Kuklabs SSO deep-link flow) + official multi-colour
+  // logo. Rendered only when the server reports OAuth is configured.
+  Widget _googleBlock() => FutureBuilder<bool>(
         future: GoogleAuth.enabled(),
         builder: (context, snap) {
           if (snap.data != true) return const SizedBox.shrink();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
               _orDivider(),
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
               SizedBox(
-                height: 54,
+                height: AuthTokens.googleButtonHeight,
                 child: OutlinedButton(
                   onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: AppColors.surface,
                     side: const BorderSide(color: AppColors.border),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                        borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -289,9 +307,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                       SizedBox(width: 12),
                       Text('Continue with Google',
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary)),
+                              fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
                     ],
                   ),
                 ),
@@ -301,20 +317,24 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         },
       );
 
-  Widget _orDivider() => Row(children: const [
-        Expanded(child: Divider(color: AppColors.borderSubtle)),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
-          child: Text('or', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
-        ),
-        Expanded(child: Divider(color: AppColors.borderSubtle)),
-      ]);
+  Widget _orDivider() => SizedBox(
+        height: AuthTokens.orDividerHeight,
+        child: Row(children: const [
+          Expanded(child: Divider(color: AppColors.borderSubtle)),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: Text('or', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+          ),
+          Expanded(child: Divider(color: AppColors.borderSubtle)),
+        ]),
+      );
 
   Widget _legal() => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Text.rich(
           TextSpan(
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.5),
+            style: const TextStyle(
+                fontSize: AuthTokens.legalTextSize, color: AppColors.textMuted, height: 1.5),
             children: [
               const TextSpan(text: 'By continuing, you agree to our '),
               TextSpan(
@@ -337,18 +357,16 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   // ── Forms ───────────────────────────────────────────────────────────────
   List<Widget> _signInForm() => [
         _identityField(),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         _passwordField(onSubmit: _signIn),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: _busy ? null : () => _openUrl(_hostedLoginUrl),
-            style: TextButton.styleFrom(
-                padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
+            style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
             child: const Text('Forgot Password?',
-                style: TextStyle(
-                    color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14)),
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ),
         const SizedBox(height: 12),
@@ -356,30 +374,31 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
       ];
 
   List<Widget> _signUpForm() => [
-        TextField(
+        _field(TextField(
           controller: _name,
           textCapitalization: TextCapitalization.words,
-          style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+          textAlignVertical: TextAlignVertical.center,
+          style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
           decoration: _dec('Full Name', Icons.person_outline),
-        ),
-        const SizedBox(height: 14),
+        )),
+        const SizedBox(height: 12),
         _identityField(),
-        const SizedBox(height: 14),
-        TextField(
+        const SizedBox(height: 12),
+        _field(TextField(
           controller: _phone,
           keyboardType: TextInputType.phone,
-          style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+          textAlignVertical: TextAlignVertical.center,
+          style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
           decoration: _dec('Mobile Number (with country code)', Icons.call_outlined),
-        ),
-        const SizedBox(height: 14),
+        )),
+        const SizedBox(height: 12),
         _passwordField(onSubmit: _signUp),
         const SizedBox(height: 6),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 24,
-              height: 24,
+              width: 24, height: 24,
               child: Checkbox(
                 value: _acceptedTerms,
                 onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
@@ -406,16 +425,17 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
       ];
 
   List<Widget> _verifyForm() => [
-        TextField(
+        _field(TextField(
           controller: _otp,
           keyboardType: TextInputType.number,
           maxLength: 6,
           textAlign: TextAlign.center,
+          textAlignVertical: TextAlignVertical.center,
           style: const TextStyle(
-              fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 10, color: AppColors.textPrimary),
+              fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: 10, color: AppColors.textPrimary),
           decoration: _dec('••••••', Icons.mark_email_read_outlined).copyWith(counterText: ''),
           onSubmitted: (_) => _verify(),
-        ),
+        )),
         const SizedBox(height: 14),
         _primaryButton('Verify & Continue', _verify),
         const SizedBox(height: 6),
@@ -432,7 +452,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   Widget build(BuildContext context) {
     final tagline = _mode == _Mode.verify
         ? 'Enter the 6-digit code we emailed to finish setting up your account.'
-        : 'Events, reminders & schedules — synced with your Kuklabs account.';
+        : ProductBrand.tagline;
     return Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
@@ -447,20 +467,20 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             ),
             Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                padding: const EdgeInsets.fromLTRB(
+                    AuthTokens.horizontalPadding, 24, AuthTokens.horizontalPadding, 24),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
+                  constraints: const BoxConstraints(maxWidth: AuthTokens.contentMaxWidth),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Product app icon (calendar tile).
                       Center(
                         child: Container(
-                          width: 92,
-                          height: 92,
+                          width: AuthTokens.productIcon,
+                          height: AuthTokens.productIcon,
                           decoration: BoxDecoration(
                             color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(24),
+                            borderRadius: BorderRadius.circular(AuthTokens.productIconRadius),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.primary.withOpacity(0.28),
@@ -469,39 +489,42 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.calendar_month_rounded,
-                              color: Colors.white, size: 50),
+                          child: const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 46),
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       const Text('Welcome to',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontSize: 24, fontWeight: FontWeight.w500, color: AppColors.textPrimary)),
+                              fontSize: AuthTokens.welcomeSize,
+                              height: AuthTokens.welcomeHeight,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.textPrimary)),
                       const SizedBox(height: 2),
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text.rich(
                           const TextSpan(children: [
-                            TextSpan(
-                                text: 'Kuk',
-                                style: TextStyle(color: AppColors.textPrimary)),
-                            TextSpan(
-                                text: 'Calendar',
-                                style: TextStyle(color: AppColors.primary)),
+                            TextSpan(text: ProductBrand.nameDark, style: TextStyle(color: AppColors.textPrimary)),
+                            TextSpan(text: ProductBrand.nameAccent, style: TextStyle(color: AppColors.primary)),
                           ]),
-                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w800, height: 1.1),
+                          style: const TextStyle(
+                              fontSize: AuthTokens.productNameSize,
+                              height: AuthTokens.productNameHeight,
+                              fontWeight: FontWeight.w800),
                         ),
                       ),
                       const SizedBox(height: 12),
                       Text(tagline,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                              fontSize: 16, color: AppColors.textSecondary, height: 1.45)),
-                      const SizedBox(height: 28),
+                              fontSize: AuthTokens.taglineSize,
+                              height: AuthTokens.taglineHeight,
+                              color: AppColors.textSecondary)),
+                      const SizedBox(height: 24),
                       if (_mode != _Mode.verify) ...[
                         _tabs(),
-                        const SizedBox(height: 22),
+                        const SizedBox(height: 20),
                       ],
                       ...switch (_mode) {
                         _Mode.signIn => _signInForm(),
@@ -520,21 +543,17 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: AppColors.danger, fontSize: 13)),
                       ],
-                      // OR divider + Google are inside _googleButton so they
-                      // appear together only when Google is available.
-                      if (_mode != _Mode.verify) _googleButton(),
-                      const SizedBox(height: 26),
+                      if (_mode != _Mode.verify) _googleBlock(),
+                      const SizedBox(height: 24),
                       _legal(),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       const Text.rich(
                         TextSpan(children: [
                           TextSpan(text: 'Powered by '),
-                          TextSpan(
-                              text: 'Kuklabs',
-                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          TextSpan(text: 'Kuklabs', style: TextStyle(fontWeight: FontWeight.w700)),
                         ]),
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+                        style: TextStyle(fontSize: AuthTokens.poweredBySize, color: AppColors.textMuted),
                       ),
                     ],
                   ),
