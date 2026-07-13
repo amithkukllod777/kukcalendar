@@ -53,9 +53,12 @@ ThemeData buildAppTheme() {
     textTheme: GoogleFonts.interTextTheme(base.textTheme),
     primaryTextTheme: GoogleFonts.interTextTheme(base.primaryTextTheme),
     appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
+      foregroundColor: AppColors.textPrimary,
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: AppColors.textPrimary),
       elevation: 0,
+      scrolledUnderElevation: 0,
     ),
     dividerColor: AppColors.borderSubtle,
   );

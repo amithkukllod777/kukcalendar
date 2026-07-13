@@ -110,6 +110,7 @@ String _fmtTime(String? hm) {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   CalView _view = CalView.month;
   DateTime _focused = DateTime.now();
   DateTime _selected = DateTime.now();
@@ -346,6 +347,47 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _load();
   }
 
+  // Tapping the "Month YYYY ▾" title opens Today + view switching, replacing the
+  // old app-bar Today button and overflow menu so the bar matches the design.
+  Future<void> _openViewMenu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.today_outlined, color: AppColors.primary),
+              title: const Text('Today'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _goToday();
+              },
+            ),
+            const Divider(height: 1),
+            for (final v in CalView.values)
+              ListTile(
+                leading: Icon(v.icon,
+                    color: v == _view ? AppColors.primary : AppColors.textSecondary),
+                title: Text(v.label),
+                trailing: v == _view
+                    ? const Icon(Icons.check, color: AppColors.primary, size: 20)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _setView(v);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String get _title {
     switch (_view) {
       case CalView.month:
@@ -369,9 +411,30 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: AppColors.bg,
       drawer: _buildDrawer(),
       appBar: AppBar(
-        title: Text(_title),
+        titleSpacing: 4,
+        title: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: _openViewMenu,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(_title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w700)),
+                ),
+                const Icon(Icons.arrow_drop_down, size: 24),
+              ],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Search',
@@ -379,37 +442,38 @@ class _CalendarScreenState extends State<CalendarScreen> {
             onPressed: () => showSearch(
                 context: context, delegate: _EventSearchDelegate(_openExisting)),
           ),
-          IconButton(
-            tooltip: 'Today',
-            icon: const Icon(Icons.today_outlined),
-            onPressed: _goToday,
-          ),
-          PopupMenuButton<CalView>(
-            tooltip: 'View',
-            icon: const Icon(Icons.more_vert),
-            onSelected: _setView,
-            itemBuilder: (_) => CalView.values
-                .map((v) => PopupMenuItem(
-                      value: v,
-                      child: Row(children: [
-                        Icon(v.icon,
-                            size: 18,
-                            color: v == _view ? AppColors.primary : null),
-                        const SizedBox(width: 10),
-                        Text(v.label),
-                      ]),
-                    ))
-                .toList(),
+          Padding(
+            padding: const EdgeInsets.only(left: 2, right: 14),
+            child: GestureDetector(
+              onTap: () => _scaffoldKey.currentState?.openDrawer(),
+              child: CircleAvatar(
+                radius: 17,
+                backgroundColor: AppColors.primary,
+                child: Text(
+                  _accountInitial(),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _openEventForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('Event'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        child: const Icon(Icons.add),
       ),
       body: _loading ? const LoadingView() : _buildBody(),
     );
+  }
+
+  String _accountInitial() {
+    final n = CalSync.instance.userName?.trim() ?? '';
+    return n.isNotEmpty ? n.substring(0, 1).toUpperCase() : 'K';
   }
 
   Widget _buildBody() {
@@ -625,55 +689,47 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final selectedEvents = byDay[_key(_selected)] ?? const [];
     return Column(
       children: [
-        _monthNav(),
         _weekdayRow(),
-        _monthGrid(byDay),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: (d) {
+            final v = d.primaryVelocity ?? 0;
+            if (v < -120) {
+              _step(1);
+            } else if (v > 120) {
+              _step(-1);
+            }
+          },
+          child: _monthGrid(byDay),
+        ),
         if (!kStandaloneCalendar) _filterChips(),
-        const Divider(height: 1),
+        const SizedBox(height: 4),
         Expanded(child: _dayAgenda(selectedEvents)),
       ],
     );
   }
 
-  Widget _monthNav() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
-      child: Row(
-        children: [
-          IconButton(
-              onPressed: () => _step(-1),
-              icon: const Icon(Icons.chevron_left)),
-          Expanded(
-            child: Center(
-                child: Text(_monthFmt.format(_focused),
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700))),
-          ),
-          IconButton(
-              onPressed: () => _step(1),
-              icon: const Icon(Icons.chevron_right)),
-        ],
-      ),
-    );
-  }
-
   Widget _weekdayRow() {
-    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return Row(
-      children: labels
-          .map((l) => Expanded(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(l,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary)),
+    const labels = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: labels
+            .map((l) => Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(l,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.5,
+                              color: AppColors.textMuted)),
+                    ),
                   ),
-                ),
-              ))
-          .toList(),
+                ))
+            .toList(),
+      ),
     );
   }
 
@@ -752,27 +808,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _eventBars(List<Map<String, dynamic>> events) {
-    if (events.isEmpty) return const SizedBox(height: 12);
+    if (events.isEmpty) return const SizedBox(height: 6);
     final show = events.take(3).toList();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
+    return SizedBox(
+      height: 6,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final e in show)
             Container(
-              height: 3,
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 2),
+              width: 5,
+              height: 5,
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
               decoration: BoxDecoration(
                 color: _colorFor(e['color'] as String?),
-                borderRadius: BorderRadius.circular(2),
+                shape: BoxShape.circle,
               ),
             ),
-          if (events.length > 3)
-            Text('+${events.length - 3}',
-                style: const TextStyle(
-                    fontSize: 8, height: 1, color: AppColors.textSecondary)),
         ],
       ),
     );
@@ -873,7 +926,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _eventTile(Map<String, dynamic> e) {
     final color = _colorFor(e['color'] as String?);
     final source = _sources[e['source']] ?? _sources['event']!;
-    final editable = e['editable'] == true;
     final amount = e['amount'] as double?;
     final time = e['time'] as String?;
     final bits = <String>[];
@@ -888,20 +940,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final status = e['status'] as String?;
     if (status != null && status.isNotEmpty) bits.add(status);
 
+    final category = (e['category'] as String?) ?? source.label;
     return AppCard(
       onTap: () => _openExisting(e),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(12),
       child: Row(
         children: [
           Container(
-            width: 4,
-            height: 38,
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: color, borderRadius: BorderRadius.circular(2)),
+              color: color,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(source.icon, size: 22, color: Colors.white),
           ),
           const SizedBox(width: 12),
-          Icon(source.icon, size: 18, color: color),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -910,19 +965,35 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13.5)),
+                        fontWeight: FontWeight.w600, fontSize: 15)),
                 if (bits.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(bits.join('  ·  '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.textSecondary)),
+                            fontSize: 13, color: AppColors.textSecondary)),
                   ),
               ],
             ),
           ),
-          Icon(editable ? Icons.edit_outlined : Icons.chevron_right,
-              size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          if (category.isNotEmpty)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(category,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textMuted)),
+                const SizedBox(width: 6),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -1233,6 +1304,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             .toList(),
                         onChanged: (v) => setSheet(() => reminderMin = v ?? -1),
                       ),
+                      // All-day events have no start time, so let the user choose
+                      // the clock time the reminder fires (default 09:00). Without
+                      // this the alarm silently anchored to a fixed 09:00.
+                      if (allDay && reminderMin >= 0) ...[
+                        const SizedBox(height: 10),
+                        _pickerField('Remind at', _fmtTime(startTime),
+                            () => pickTime(true)),
+                      ],
                       const SizedBox(height: 10),
                     ],
                     TextField(
