@@ -1,0 +1,69 @@
+{
+  "version": "4.0.0",
+  "fontFamily": "Inter",
+  "fontWeights": {
+    "regular": 400,
+    "medium": 500,
+    "semibold": 600,
+    "bold": 700,
+    "extrabold": 800
+  },
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ],
+  "radius": {
+    "small": 8,
+    "control": 12,
+    "authControl": 16,
+    "card": 16,
+    "modal": 20,
+    "productIcon": 24,
+    "pill": 999
+  },
+  "colors": {
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "textPrimary": "#101828",
+    "textSecondary": "#475467",
+    "textMuted": "#667085",
+    "placeholder": "#98A2B3",
+    "border": "#D0D5DD",
+    "dividerSoft": "#EAECF0",
+    "success": "#039855",
+    "warning": "#DC6803",
+    "error": "#D92D20",
+    "info": "#1570EF"
+  },
+  "authPage": {
+    "contentMaxWidth": 420,
+    "horizontalPadding": 20,
+    "productIcon": 80,
+    "productIconMax": 88,
+    "tabsHeight": 56,
+    "inputHeight": 58,
+    "primaryButtonHeight": 58,
+    "googleButtonHeight": 58,
+    "showVersion": false,
+    "lastElement": "Powered by Kuklabs"
+  },
+  "profilePage": {
+    "versionLocation": "About this app > bottom-most muted footer",
+    "versionFormat": "Version {version} (Build {build})",
+    "versionTextStyle": {
+      "size": 12,
+      "lineHeight": 16,
+      "weight": 400,
+      "color": "#98A2B3",
+      "align": "center"
+    }
+  }
+}

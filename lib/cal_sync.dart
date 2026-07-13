@@ -213,39 +213,18 @@ class CalSync {
     await _mutate('auth.resendOtp', {'email': email});
   }
 
-  String _slugify(String name) {
-    final b = name
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'(^-|-$)'), '');
-    final suffix = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
-    return '${b.isEmpty ? 'calendar' : b}-$suffix';
-  }
-
   Future<void> _ensureCompany() async {
     try {
-      var list = await _query('company.list');
-      // Brand-new account with no workspace → create a free one (silent),
-      // mirroring KukKeep/KukTask so sync works on first sign-in.
-      if (list is! List || list.isEmpty) {
-        final nm = (userName?.trim().isNotEmpty == true) ? userName! : 'My Calendar';
-        try {
-          await _mutate('company.create', {
-            'name': nm,
-            'slug': _slugify(nm),
-            'phone': '0000000',
-            'productType': 'tasks',
-            'signupModule': 'calendar',
-          });
-        } catch (_) {/* fall through to re-list */}
-        list = await _query('company.list');
-      }
-      if (list is List && list.isNotEmpty) {
-        final id = (list.first as Map)['id'];
-        if (id is int) {
-          _companyId = id;
-          await _save();
-        }
+      // One Kuklabs Personal Workspace: resolve (or lazily create) the caller's
+      // single account-level personal workspace on the shared backend. This is the
+      // SAME workspace KukTask/KukKeep resolve, so personal events/tasks/notes stay
+      // together and NEVER land in an arbitrary business company. We no longer scan
+      // company.list or fall back to list.first — the server returns a deterministic id.
+      final ws = await _mutate('workspace.getOrCreatePersonal', {});
+      final id = ws is Map ? ws['id'] : null;
+      if (id is int) {
+        _companyId = id;
+        await _save();
       }
     } catch (_) {/* keep going; sync will surface errors */}
   }

@@ -1,0 +1,32 @@
+{
+  "instruction": "Fill this for the app currently being built. The agent must implement the universal Kuklabs login screen with these values.",
+  "productName": "Kuk Calendar",
+  "productId": "kukcalendar",
+  "productIconPath": "android/app/src/main/res (flutter_launcher_icons, see pubspec.yaml)",
+  "tagline": "Events, reminders & schedules — synced with your Kuklabs account.",
+  "accentColor": "#2868F0",
+  "authScreenRequired": true,
+  "referenceImage": "APPROVED_LOGIN_REFERENCE.png",
+  "showVersionOnAuthScreen": false,
+  "authScreenLastElement": "Powered by Kuklabs",
+  "versionLocation": "Drawer footer today (calendar_screen.dart) — Profile > About this app once Profile page ships",
+  "allowedChanges": [
+    "product icon",
+    "product name",
+    "product tagline",
+    "approved product accent colour"
+  ],
+  "mustRemainSame": [
+    "page structure",
+    "block order",
+    "font family and sizes",
+    "spacing",
+    "control heights",
+    "corner radii",
+    "Google branding",
+    "legal placement",
+    "Powered by Kuklabs placement",
+    "smart input behaviour",
+    "friendly error behaviour"
+  ]
+}

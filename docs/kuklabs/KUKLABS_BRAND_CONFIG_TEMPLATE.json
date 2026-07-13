@@ -1,0 +1,12 @@
+{
+  "productName": "{PRODUCT_NAME}",
+  "productId": "{PRODUCT_ID}",
+  "productIconPath": "{PRODUCT_ICON_PATH}",
+  "tagline": "{PRODUCT_TAGLINE}",
+  "accentColor": "{PRODUCT_ACCENT}",
+  "packageId": "com.kuklabs.{product}",
+  "assetPrefix": "{product}_",
+  "termsUrl": "https://kuklabs.com/terms",
+  "privacyUrl": "https://kuklabs.com/privacy",
+  "supportUrl": "https://kuklabs.com/support"
+}

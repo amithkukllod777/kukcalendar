@@ -1,0 +1,33 @@
+{
+  "packVersion": "4.0.0",
+  "requiredFiles": [
+    "AGENT_BOOTSTRAP_PROMPT.md",
+    "APPROVED_LOGIN_REFERENCE.png",
+    "APP_VERSION_DISPLAY_POLICY.md",
+    "CLAUDE.md",
+    "CURRENT_PRODUCT_LOGIN_CONFIG.json",
+    "CURRENT_PRODUCT_LOGIN_CONFIG.json",
+    "DEVELOPER_HANDOFF.md",
+    "KUKLABS_AGENT_INSTRUCTIONS.md",
+    "KUKLABS_AUTH_CONTENT_TEMPLATES.json",
+    "KUKLABS_AUTH_CONTENT_TEMPLATES.json",
+    "KUKLABS_BRAND_CONFIG_TEMPLATE.json",
+    "KUKLABS_BRAND_CONFIG_TEMPLATE.json",
+    "KUKLABS_DESIGN_TOKENS.json",
+    "KUKLABS_DESIGN_TOKENS.json",
+    "KUKLABS_MASTER_STANDARD.md",
+    "PRODUCT_LOGIN_SCREEN_EXECUTION_PROMPT.md",
+    "README.md",
+    "REPO_INTEGRATION_GUIDE.md"
+  ],
+  "mandatoryChecks": [
+    "Actual current app implements the approved universal Login / Sign Up screen.",
+    "Only product icon, name, tagline and accent colour change.",
+    "No version/build/channel/hash appears on Login, Sign Up, OTP, recovery, onboarding or splash.",
+    "Powered by Kuklabs is the final auth-screen element.",
+    "Version x.y.z (Build n) appears only as the bottom-most muted footer in Profile > About this app.",
+    "Screen connects to shared Kuklabs AuthKit.",
+    "Official Google multicolour G is used.",
+    "No raw JSON or framework error is displayed."
+  ]
+}

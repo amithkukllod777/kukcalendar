@@ -1,0 +1,26 @@
+{
+  "auth": {
+    "welcome": "Welcome to {productName}",
+    "identity": "Mobile number or email",
+    "password": "Password",
+    "login": "Login",
+    "signup": "Sign Up",
+    "continueWithGoogle": "Continue with Google",
+    "legal": "By continuing, you agree to our Terms of Use and Privacy Policy",
+    "poweredBy": "Powered by Kuklabs",
+    "showVersion": false,
+    "lastElement": "Powered by Kuklabs"
+  },
+  "profile": {
+    "versionLocation": "Profile > About this app > bottom-most muted footer",
+    "versionFormat": "Version {version} (Build {build})"
+  },
+  "errors": {
+    "invalidCredentials": "We couldn't sign you in. Check your email or mobile number and password, then try again.",
+    "invalidEmail": "Enter a valid email address.",
+    "invalidPhone": "Enter a valid mobile number for the selected country.",
+    "offline": "You're offline. Check your internet connection and try again.",
+    "server": "Something went wrong on our side. Please try again in a moment.",
+    "generic": "We couldn't complete that action. Please try again."
+  }
+}
