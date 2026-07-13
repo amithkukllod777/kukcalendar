@@ -1,5 +1,19 @@
 # Developer Handoff — Kuklabs Universal UI/Auth Pack
 
+## Non-optional delivery requirement
+
+The developer must deliver the approved authentication screen inside the current app.
+
+A documentation-only update is not accepted.
+
+Definition of done:
+
+```text
+The current app launches or routes to the approved universal Kuklabs
+Login / Sign Up screen using that app's icon, name, tagline and accent.
+```
+
+
 ## Objective
 
 Implement one reusable Kuklabs product shell so every product looks consistent and agents do not repeat the same design work.

@@ -12,7 +12,13 @@ docs/kuklabs/KUKLABS_AGENT_INSTRUCTIONS.md
 docs/kuklabs/KUKLABS_DESIGN_TOKENS.json
 docs/kuklabs/KUKLABS_AUTH_CONTENT_TEMPLATES.json
 docs/kuklabs/APPROVED_LOGIN_REFERENCE.png
+docs/kuklabs/CURRENT_PRODUCT_LOGIN_CONFIG.json   — this app's filled-in values
 ```
+
+Pack version: V3 (`docs/kuklabs/KUKLABS_DESIGN_TOKENS.json` → `"version": "3.0.0"`). V3 is a
+JSON-schema reorganization of V2's identical values (same 58px controls, 420 maxWidth,
+24 welcome, etc.) — `lib/kuklabs/auth_tokens.dart` already matches; no token/content
+values changed when the pack was refreshed.
 
 ## Non-negotiable rules
 - One Kuklabs Account (shared `auth.*` on kuklabs.com); no separate user/

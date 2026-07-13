@@ -1,36 +1,29 @@
 {
-  "packVersion": "2.0.0",
+  "packVersion": "3.0.0",
+  "purpose": "Ensure the current Kuklabs app actually implements the universal login/signup screen.",
   "requiredFiles": [
+    "README.md",
     "CLAUDE.md",
     "KUKLABS_MASTER_STANDARD.md",
+    "KUKLABS_AGENT_INSTRUCTIONS.md",
     "KUKLABS_DESIGN_TOKENS.json",
     "KUKLABS_BRAND_CONFIG_TEMPLATE.json",
     "KUKLABS_AUTH_CONTENT_TEMPLATES.json",
+    "CURRENT_PRODUCT_LOGIN_CONFIG.json",
+    "PRODUCT_LOGIN_SCREEN_EXECUTION_PROMPT.md",
     "APPROVED_LOGIN_REFERENCE.png",
     "DEVELOPER_HANDOFF.md",
     "REPO_INTEGRATION_GUIDE.md"
   ],
-  "mandatoryChecks": {
-    "identity": [
-      "shared AuthKit",
-      "shared Kuklabs user ID",
-      "no separate auth database",
-      "no separate Firebase/Google Cloud project"
-    ],
-    "ui": [
-      "Inter font",
-      "shared design tokens",
-      "approved auth shell",
-      "official Google logo",
-      "friendly error messages",
-      "profile structure",
-      "version/build display"
-    ],
-    "mobile": [
-      "one-screen normal state",
-      "keyboard-safe fallback scrolling",
-      "E.164 phone number",
-      "country selector behaviour"
-    ]
-  }
+  "mandatoryChecks": [
+    "The actual current app contains the approved Login / Sign Up screen.",
+    "The screen matches APPROVED_LOGIN_REFERENCE.png.",
+    "The current product icon, name, tagline and approved accent are used.",
+    "All other structure, spacing, typography and component sizes remain shared.",
+    "The screen connects to shared Kuklabs AuthKit.",
+    "Official Google multicolour G is used.",
+    "No raw JSON or framework errors appear.",
+    "Mobile/email smart detection and E.164 submission work.",
+    "Documentation-only implementation is rejected."
+  ]
 }

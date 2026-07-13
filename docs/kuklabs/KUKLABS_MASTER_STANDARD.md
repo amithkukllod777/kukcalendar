@@ -1,5 +1,30 @@
 # KUKLABS MASTER UI, AUTH, PROFILE, CONTENT & RELEASE STANDARD
 
+# 0. Required implementation in every product repository
+
+This standard must be implemented in the actual app, not merely stored as documentation.
+
+For whichever Kuklabs app is currently being built:
+
+```text
+Create or refactor its Login / Sign Up screen
+to match APPROVED_LOGIN_REFERENCE.png.
+```
+
+Only change:
+
+```text
+product icon
+product name
+product tagline
+approved product accent colour
+```
+
+Keep all other login-screen structure, sizes, typography, spacing, content placement and behaviour identical across products.
+
+The sample reference image is not KukKeep-only. It is the universal Kuklabs authentication-shell reference for every Kuklabs app.
+
+
 **Status:** Mandatory  
 **Version:** 1.0.0  
 **Applies to:** Every current and future Kuklabs app  
