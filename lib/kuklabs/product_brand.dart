@@ -8,13 +8,16 @@ class ProductBrand {
   ProductBrand._();
 
   static const String productId = 'kukcalendar';
-  static const String productName = 'KukCalendar';
+  /// Public product name — always "Kuk Calendar" (with the space). Repo/project
+  /// id stays `kukcalendar`; package stays `com.kuklabs.calendar`.
+  static const String productName = 'Kuk Calendar';
   static const String shortName = 'Calendar';
   static const String packageId = 'com.kuklabs.calendar';
 
-  /// Wordmark split for the two-tone product name ("Kuk" + accent "Calendar").
+  /// Wordmark split for the two-tone product name ("Kuk " + accent "Calendar").
+  /// The leading space on the accent keeps the rendered wordmark "Kuk Calendar".
   static const String nameDark = 'Kuk';
-  static const String nameAccent = 'Calendar';
+  static const String nameAccent = ' Calendar';
 
   static const String tagline =
       'Events, reminders & schedules — synced with your Kuklabs account.';
