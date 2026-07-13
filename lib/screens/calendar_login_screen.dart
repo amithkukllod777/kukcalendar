@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../cal_sync.dart';
+import '../google_auth.dart';
 import '../theme/app_theme.dart';
 
 enum _Mode { signIn, signUp, verify }
@@ -147,16 +148,6 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     } catch (_) {/* no browser available */}
   }
 
-  Future<void> _continueWithGoogle() async {
-    await _openUrl(_hostedLoginUrl);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            'Continue with Google in the browser, then sign in here with the same Kuklabs account.'),
-      ));
-    }
-  }
-
   void _switchMode(_Mode m) => setState(() {
         _mode = m;
         _error = null;
@@ -268,37 +259,46 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     );
   }
 
-  Widget _googleButton() => SizedBox(
-        height: 54,
-        child: OutlinedButton(
-          onPressed: _busy ? null : _continueWithGoogle,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: AppColors.surface,
-            side: const BorderSide(color: AppColors.border),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+  // Continue with Google (Kuklabs SSO deep-link flow). Rendered only when the
+  // server reports OAuth is configured, so it never shows as a dead button;
+  // tapping opens the browser and the deep-link handler finishes sign-in.
+  Widget _googleButton() => FutureBuilder<bool>(
+        future: GoogleAuth.enabled(),
+        builder: (context, snap) {
+          if (snap.data != true) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 22,
-                height: 22,
-                alignment: Alignment.center,
-                child: const Text('G',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF4285F4))),
+              const SizedBox(height: 22),
+              _orDivider(),
+              const SizedBox(height: 22),
+              SizedBox(
+                height: 54,
+                child: OutlinedButton(
+                  onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.surface,
+                    side: const BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      GoogleGLogo(size: 20),
+                      SizedBox(width: 12),
+                      Text('Continue with Google',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(width: 10),
-              const Text('Continue with Google',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary)),
             ],
-          ),
-        ),
+          );
+        },
       );
 
   Widget _orDivider() => Row(children: const [
@@ -520,12 +520,9 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: AppColors.danger, fontSize: 13)),
                       ],
-                      if (_mode != _Mode.verify) ...[
-                        const SizedBox(height: 22),
-                        _orDivider(),
-                        const SizedBox(height: 22),
-                        _googleButton(),
-                      ],
+                      // OR divider + Google are inside _googleButton so they
+                      // appear together only when Google is available.
+                      if (_mode != _Mode.verify) _googleButton(),
                       const SizedBox(height: 26),
                       _legal(),
                       const SizedBox(height: 18),

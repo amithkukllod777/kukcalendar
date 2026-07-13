@@ -16,6 +16,10 @@ class CalSync {
   static final CalSync instance = CalSync._();
 
   static const String base = 'https://kuklabs.com';
+  // Kuklabs SSO Google flow (KUKLABS_IDENTITY.md §3): open in the browser, the
+  // server deep-links back to kukcalendar://auth with a one-time code.
+  static const String googleStartUrl =
+      '$base/api/auth/google/start?app=kukcalendar';
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 20),
     receiveTimeout: const Duration(seconds: 30),
@@ -138,6 +142,39 @@ class CalSync {
     if (token == null) throw Exception('Login failed');
     _token = token.toString();
     userName = (data['user']?['name'] ?? '').toString();
+    await _save();
+    await _ensureCompany();
+  }
+
+  // ── Google (Kuklabs SSO deep-link flow) ──
+  /// Whether this deployment has Google OAuth configured (hide button if not).
+  Future<bool> googleEnabled() async {
+    try {
+      final res = await _dio
+          .getUri(Uri.parse('$base/api/auth/google/status'))
+          .timeout(const Duration(seconds: 6));
+      final b = _asJson(res.data);
+      return b is Map && b['enabled'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Trade the one-time deep-link code for the same Bearer session token
+  /// directLogin issues, then bootstrap the workspace.
+  Future<void> googleExchange(String code) async {
+    final res = await _dio.getUri(
+        Uri.parse('$base/api/auth/google/app-exchange?code=${Uri.encodeComponent(code)}'));
+    final b = _asJson(res.data);
+    final token = b is Map ? b['token'] : null;
+    if (token == null) {
+      final msg = (b is Map ? b['error'] : null)?.toString();
+      throw Exception((msg == null || msg.isEmpty)
+          ? 'Google sign-in failed. Please try again.'
+          : msg);
+    }
+    _token = token.toString();
+    userName = (b['name'] ?? '').toString();
     await _save();
     await _ensureCompany();
   }

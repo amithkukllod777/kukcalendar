@@ -78,8 +78,31 @@ jobs:
           )
           if "ScheduledNotificationReceiver" not in m:
               m = m.replace("</application>", recv + "    </application>", 1)
+          # Google SSO deep link: kukcalendar://auth (server redirects here with
+          # a one-time code after browser OAuth). Attach to the launcher activity.
+          if 'android:scheme="kukcalendar"' not in m:
+              deeplink = (
+                '            <intent-filter>\n'
+                '                <action android:name="android.intent.action.VIEW"/>\n'
+                '                <category android:name="android.intent.category.DEFAULT"/>\n'
+                '                <category android:name="android.intent.category.BROWSABLE"/>\n'
+                '                <data android:scheme="kukcalendar" android:host="auth"/>\n'
+                '            </intent-filter>\n'
+              )
+              m = m.replace("</activity>", deeplink + "        </activity>", 1)
+          # Package visibility so url_launcher can resolve a browser on API 30+.
+          if 'android:scheme="https"' not in m:
+              q = (
+                '    <queries>\n'
+                '        <intent>\n'
+                '            <action android:name="android.intent.action.VIEW"/>\n'
+                '            <data android:scheme="https"/>\n'
+                '        </intent>\n'
+                '    </queries>\n'
+              )
+              m = m.replace("<application", q + "    <application", 1)
           open(mp, "w").write(m)
-          print("AndroidManifest.xml: permissions + receivers injected")
+          print("AndroidManifest.xml: permissions + receivers + deep link injected")
 
           gp = "android/app/build.gradle"
           g = open(gp).read()
