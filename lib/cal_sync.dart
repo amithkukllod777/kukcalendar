@@ -241,7 +241,17 @@ class CalSync {
         list = await _query('company.list');
       }
       if (list is List && list.isNotEmpty) {
-        final id = (list.first as Map)['id'];
+        // Multi-company users (e.g. also on KukBook) must not have personal
+        // calendar events filed under an arbitrary business workspace: always
+        // bind to the one this app created (signupModule == 'calendar'), and
+        // only fall back to the first company if none is tagged yet (accounts
+        // created before this fix).
+        final companies = list.cast<Map>();
+        final personal = companies.firstWhere(
+          (c) => c['signupModule'] == 'calendar',
+          orElse: () => companies.first,
+        );
+        final id = personal['id'];
         if (id is int) {
           _companyId = id;
           await _save();
