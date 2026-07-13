@@ -20,7 +20,7 @@ dependencies:
   timezone: ^0.9.4
   google_fonts: ^6.2.1
   url_launcher: ^6.3.0
-  app_links: ^6.3.2       # receives the kukcalendar://auth Google SSO deep link
+  app_links: 6.3.2       # receives the kukcalendar://auth Google SSO deep link
   flutter_svg: ^2.0.10    # renders the real multi-colour Google "G" logo
 
 dev_dependencies:
