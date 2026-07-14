@@ -78,6 +78,7 @@ const Map<String, _Source> _sources = {
   'expense': _Source('Expenses', Icons.shopping_bag_outlined, 'purple'),
   'cheque': _Source('Cheques', Icons.account_balance_outlined, 'orange'),
   'reminder': _Source('Reminders', Icons.notifications_active_outlined, 'teal'),
+  'task': _Source('KukTask', Icons.check_circle_outline, 'indigo'),
 };
 
 final _money = Money.fmt(2);
@@ -116,6 +117,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime _selected = DateTime.now();
   bool _loading = true;
   List<Map<String, dynamic>> _events = [];
+  // Read-only KukTask due-date overlay (ARCH-1); fetched from the shared backend
+  // and merged into _events so it renders like any other calendar item.
+  List<Map<String, dynamic>> _taskOverlay = [];
   List<Map<String, dynamic>> _lists = []; // calendars/categories
   final Set<String> _hidden = {}; // hidden source keys (KukBook overlay only)
 
@@ -139,7 +143,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
     if (!kStandaloneCalendar) return;
     await CalSync.instance.load();
     if (mounted) setState(() {});
-    if (CalSync.instance.isLoggedIn) await _syncNow(silent: true);
+    if (CalSync.instance.isLoggedIn) {
+      await _syncNow(silent: true);
+      await _loadTasks();
+    }
+  }
+
+  /// Fetch the read-only KukTask due-date overlay and re-render (ARCH-1). Safe
+  /// when signed out / offline — returns nothing and the overlay stays empty.
+  Future<void> _loadTasks() async {
+    if (!kStandaloneCalendar) return;
+    final tasks = await CalSync.instance.myUpcomingTasks();
+    final items = <Map<String, dynamic>>[];
+    for (final t in tasks) {
+      final due = DateTime.tryParse('${t['dueDate'] ?? ''}');
+      if (due == null) continue;
+      items.add({
+        'title': '${t['title'] ?? 'Task'}',
+        'date': DateTime(due.year, due.month, due.day),
+        'allDay': true,
+        'color': 'indigo',
+        'source': 'task',
+        'editable': false,
+        'category': '${t['companyName'] ?? ''}',
+        'status': '${t['status'] ?? ''}',
+      });
+    }
+    _taskOverlay = items;
+    if (mounted) await _load(); // re-merge overlay + events, then render
   }
 
   Future<void> _signIn() async {
@@ -151,7 +182,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Future<void> _signOut() async {
     await CalSync.instance.logout();
-    if (mounted) setState(() {});
+    _taskOverlay = []; // drop the previous user's task overlay
+    if (mounted) {
+      setState(() {});
+      await _load();
+    }
   }
 
   Future<void> _syncNow({bool silent = false}) async {
@@ -160,7 +195,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     try {
       await CalSync.instance.syncNow();
       await _loadLists();
-      await _load();
+      await _loadTasks(); // refresh KukTask overlay + re-render (calls _load)
       if (!silent && mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Synced')));
@@ -281,7 +316,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
       final (start, end) = _range();
       final list = await AppDb.instance
           .aggregateEvents(from: start, to: end, eventsOnly: kStandaloneCalendar);
-      if (mounted) setState(() { _events = list; _loading = false; });
+      if (mounted) {
+        setState(() {
+          _events = [...list, ..._taskOverlay];
+          _loading = false;
+        });
+      }
       // Keep OS reminder notifications in sync with the (possibly changed)
       // event set — no-op when nothing changed, so safe on every navigation.
       Reminders.rescheduleAll();
