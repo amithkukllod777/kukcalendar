@@ -18,6 +18,21 @@ permissions:
   contents: write
 
 jobs:
+  # Pure-Dart unit tests (reminder fire-time + recurrence logic). Independent of
+  # the build job, so it never blocks a release — it reports test health only.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: stable
+      - name: Install dependencies
+        run: flutter pub get
+      - name: Run unit tests
+        run: flutter test
+
   build:
     runs-on: ubuntu-latest
     steps:

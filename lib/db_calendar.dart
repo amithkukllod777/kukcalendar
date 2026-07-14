@@ -1,85 +1,15 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import 'db.dart';
+import 'reminder_logic.dart' as rl;
 
-String _calDateKey(DateTime dt) =>
-    '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-
-// Parse a stored date string ('YYYY-MM-DD' or full ISO) to a date-only value.
-DateTime _calParseDate(Object? raw) {
-  final s = (raw as String?)?.trim() ?? '';
-  if (s.isEmpty) return DateTime.now();
-  try {
-    final d = DateTime.parse(s.length >= 10 ? s.substring(0, 10) : s);
-    return DateTime(d.year, d.month, d.day);
-  } catch (_) {
-    return DateTime.now();
-  }
-}
-
-DateTime _safeDate(int y, int m, int day) {
-  final lastDay = DateTime(y, m + 1, 0).day; // day 0 of next month = last day
-  return DateTime(y, m, day > lastDay ? lastDay : day);
-}
-
-/// Occurrence dates (date-only) of a recurring event within [from]‥[to].
+// Thin delegates to the pure, unit-tested logic in reminder_logic.dart. Keeping
+// these names avoids churn at the call sites below.
+String _calDateKey(DateTime dt) => rl.dateKey(dt);
+DateTime _calParseDate(Object? raw) => rl.parseCalDate(raw);
 List<DateTime> _expandOccurrences(
-    DateTime base, String rec, DateTime from, DateTime to) {
-  base = DateTime(base.year, base.month, base.day);
-  from = DateTime(from.year, from.month, from.day);
-  to = DateTime(to.year, to.month, to.day);
-  final out = <DateTime>[];
-  if (base.isAfter(to)) return out; // series begins after the window
-  var guard = 0;
-  switch (rec) {
-    case 'daily':
-      {
-        var dd = from.isAfter(base) ? from : base;
-        while (!dd.isAfter(to) && guard++ < 1000) {
-          out.add(dd);
-          dd = dd.add(const Duration(days: 1));
-        }
-      }
-    case 'weekly':
-      {
-        var dd = base;
-        while (dd.isBefore(from) && guard++ < 6000) {
-          dd = dd.add(const Duration(days: 7));
-        }
-        while (!dd.isAfter(to) && guard++ < 1000) {
-          if (!dd.isBefore(base)) out.add(dd);
-          dd = dd.add(const Duration(days: 7));
-        }
-      }
-    case 'monthly':
-      {
-        var y = base.year, m = base.month;
-        final day = base.day;
-        while (guard++ < 3000) {
-          final occ = _safeDate(y, m, day);
-          if (occ.isAfter(to)) break;
-          if (!occ.isBefore(from) && !occ.isBefore(base)) out.add(occ);
-          m++;
-          if (m > 12) {
-            m = 1;
-            y++;
-          }
-        }
-      }
-    case 'yearly':
-      {
-        var y = base.year;
-        final m = base.month, day = base.day;
-        while (guard++ < 500) {
-          final occ = _safeDate(y, m, day);
-          if (occ.isAfter(to)) break;
-          if (!occ.isBefore(from) && !occ.isBefore(base)) out.add(occ);
-          y++;
-        }
-      }
-  }
-  return out;
-}
+        DateTime base, String rec, DateTime from, DateTime to) =>
+    rl.expandOccurrences(base, rec, from, to);
 
 /// Unified Calendar store (Google-Calendar-style). Offline-first: the
 /// calendar_events table self-creates on first use so no central migration is
@@ -369,21 +299,14 @@ extension CalendarStore on AppDb {
           : _expandOccurrences(base, rec, from, to);
       final allDay = ((r['all_day'] as int?) ?? 1) == 1;
       final st = (r['start_time'] as String?) ?? '';
-      // Reminder anchor: timed events use their start time; all-day events use
-      // the user-chosen "Remind at" clock time (also stored in start_time,
-      // default 09:00), so an all-day reminder fires at a controllable moment.
-      var hh = 9, mm = 0;
-      if (st.contains(':')) {
-        final p = st.split(':');
-        hh = int.tryParse(p[0]) ?? 9;
-        mm = int.tryParse(p[1]) ?? 0;
-      }
       final loc = (r['location'] as String?) ?? '';
       for (final occ in occs) {
         if (occ.isBefore(from) || occ.isAfter(to)) continue;
-        final start = DateTime(occ.year, occ.month, occ.day, hh, mm);
-        final fireAt = start.subtract(Duration(minutes: remind));
-        if (!fireAt.isAfter(now)) continue;
+        // Anchor: timed events use start_time; all-day events use the user's
+        // "Remind at" clock (also in start_time, default 09:00). Pure + tested.
+        final fireAt = rl.reminderFireTime(
+            occ: occ, startTime: st, reminderMin: remind, now: now);
+        if (fireAt == null) continue;
         out.add({
           'nid': '${r['id']}-${_calDateKey(occ)}'.hashCode & 0x7fffffff,
           'title': ((r['title'] as String?)?.isNotEmpty ?? false)
