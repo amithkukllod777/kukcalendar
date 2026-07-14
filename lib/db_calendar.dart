@@ -292,7 +292,7 @@ extension CalendarStore on AppDb {
   /// fireAt (DateTime = event start − reminder_min; all-day events count as
   /// starting at 09:00).
   Future<List<Map<String, dynamic>>> getUpcomingReminders(
-      {int days = 30, int max = 48}) async {
+      {int days = 62, int max = 64}) async {
     final d = await db;
     await _ensureCalendarTable(d);
     final now = DateTime.now();
