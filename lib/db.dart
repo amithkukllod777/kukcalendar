@@ -2,9 +2,16 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 
 /// Minimal local datastore for the standalone Kuk Calendar app. All calendar
-/// data (events, tasks, calendars) lives in one SQLite file; the tables are
-/// created on demand by the extensions in db_calendar.dart
-/// (CREATE TABLE IF NOT EXISTS), so there is no central migration.
+/// data (events, tasks, calendars) lives in one SQLite file.
+///
+/// Schema strategy: instead of a version/onUpgrade ladder, the tables and any
+/// new columns are applied idempotently on demand by the extensions in
+/// db_calendar.dart (CREATE TABLE IF NOT EXISTS + additive ALTERs). This is a
+/// valid forward-only migration approach — a fresh install and an upgraded one
+/// converge to the same schema. Expected "duplicate column" ALTER errors are
+/// ignored; any other DB error is logged rather than silently swallowed
+/// (qa-audit DATA-2). Bump to a real onUpgrade ladder only if a destructive or
+/// data-transforming migration is ever needed.
 class AppDb {
   AppDb._();
   static final AppDb instance = AppDb._();
