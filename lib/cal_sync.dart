@@ -255,6 +255,19 @@ class CalSync {
     await _mutate('auth.resendOtp', {'email': email});
   }
 
+  /// Read-only overlay (ARCH-1): the signed-in user's own KukTask due dates
+  /// across their workspaces, so the calendar shows them without owning a task
+  /// engine. Returns [] when signed out / offline / the backend predates the
+  /// endpoint — the calendar simply shows no task overlay then.
+  Future<List<Map<String, dynamic>>> myUpcomingTasks({int days = 62}) async {
+    if (!isLoggedIn) return const [];
+    try {
+      final data = await _query('tasks.myUpcoming', {'days': days});
+      if (data is List) return data.cast<Map<String, dynamic>>();
+    } catch (_) {/* endpoint missing / offline — no overlay */}
+    return const [];
+  }
+
   Future<void> _ensureCompany() async {
     try {
       // One Kuklabs Personal Workspace: resolve (or lazily create) the caller's
