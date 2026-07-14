@@ -402,6 +402,20 @@ extension CalendarStore on AppDb {
     return out.take(max).toList();
   }
 
+  /// Wipe all locally-cached calendar data (events, tasks, custom calendars).
+  /// Called on explicit logout and on account switch so one user's data can
+  /// never leak into — or be re-synced under — the next account signed in on
+  /// the same device (qa-audit DATA-1). Default calendars re-seed automatically
+  /// via _ensureLists on next access.
+  Future<void> clearLocalData() async {
+    final d = await db;
+    for (final t in const ['calendar_events', 'calendar_tasks', 'calendar_lists']) {
+      try {
+        await d.delete(t);
+      } catch (_) {/* table may not exist yet — nothing to clear */}
+    }
+  }
+
   // ─── Tasks (Google-Tasks-style to-dos) ────────────────────────────────────
   Future<void> _ensureTasks(Database d) async {
     await d.execute('''

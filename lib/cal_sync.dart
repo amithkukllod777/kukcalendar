@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'db.dart';
 import 'db_calendar.dart';
@@ -31,31 +32,76 @@ class CalSync {
   int? _companyId;
   String? userName;
 
+  // SEC-1: the Bearer session token lives in Keystore-backed secure storage,
+  // never plaintext SharedPreferences. Non-secret values (active company id,
+  // display name, last-account key) stay in SharedPreferences.
+  static const FlutterSecureStorage _secure = FlutterSecureStorage();
+
   bool get isLoggedIn => _token != null;
   int? get companyId => _companyId;
 
   Future<void> load() async {
     final p = await SharedPreferences.getInstance();
-    _token = p.getString('kc_token');
     _companyId = p.getInt('kc_company');
     userName = p.getString('kc_user');
+    _token = await _secure.read(key: 'kc_token');
+    // One-time migration: a token written by an older build sits in plaintext
+    // prefs — move it into secure storage and scrub the plaintext copy.
+    final legacy = p.getString('kc_token');
+    if (legacy != null) {
+      _token ??= legacy;
+      await _secure.write(key: 'kc_token', value: legacy);
+      await p.remove('kc_token');
+    }
   }
 
   Future<void> _save() async {
     final p = await SharedPreferences.getInstance();
-    if (_token != null) await p.setString('kc_token', _token!);
+    if (_token != null) await _secure.write(key: 'kc_token', value: _token!);
     if (_companyId != null) await p.setInt('kc_company', _companyId!);
     if (userName != null) await p.setString('kc_user', userName!);
   }
 
-  Future<void> logout() async {
+  /// End the session (token + active company) WITHOUT touching locally-cached
+  /// events — used when the token merely expired (401), so the same user can
+  /// sign back in without losing un-synced changes.
+  Future<void> _clearSession() async {
     _token = null;
     _companyId = null;
     userName = null;
+    await _secure.delete(key: 'kc_token');
     final p = await SharedPreferences.getInstance();
-    await p.remove('kc_token');
     await p.remove('kc_company');
     await p.remove('kc_user');
+  }
+
+  /// Explicit user logout: end the session AND wipe local calendar data so the
+  /// next account signed in on this device can't see or re-sync the previous
+  /// user's events/tasks/calendars (DATA-1). Default lists re-seed on next use.
+  Future<void> logout() async {
+    await _clearSession();
+    final p = await SharedPreferences.getInstance();
+    await p.remove('kc_account');
+    await AppDb.instance.clearLocalData();
+  }
+
+  /// Finalize a successful sign-in. If a DIFFERENT Kuklabs account than the last
+  /// one on this device signs in, wipe the previous user's local data first so
+  /// nothing leaks or merges across accounts (DATA-1) — this also covers the
+  /// 401-expiry → sign-in-as-someone-else path. Then persist + bootstrap.
+  Future<void> _onSignedIn(String token, String? name, String? accountKey) async {
+    final p = await SharedPreferences.getInstance();
+    final prev = p.getString('kc_account');
+    if (prev != null && accountKey != null && prev != accountKey) {
+      await AppDb.instance.clearLocalData();
+    }
+    _token = token;
+    userName = (name ?? '').trim();
+    if (accountKey != null && accountKey.isNotEmpty) {
+      await p.setString('kc_account', accountKey);
+    }
+    await _save();
+    await _ensureCompany();
   }
 
   Map<String, String> get _headers => {
@@ -107,9 +153,9 @@ class CalSync {
 
   dynamic _handle(Response res) {
     if (res.statusCode == 401) {
-      // Token expired/invalid — drop it so the UI shows "Sign in" again.
-      _token = null;
-      logout();
+      // Token expired/invalid — drop the SESSION only (not local data) so the
+      // same user can re-authenticate without losing un-synced events.
+      _clearSession();
       throw Exception('Session expired — please sign in again.');
     }
     return _unwrap(_asJson(res.data));
@@ -140,10 +186,9 @@ class CalSync {
     }
     final token = data is Map ? data['token'] : null;
     if (token == null) throw Exception('Login failed');
-    _token = token.toString();
-    userName = (data['user']?['name'] ?? '').toString();
-    await _save();
-    await _ensureCompany();
+    final acct = (data['user']?['id'] ?? email).toString();
+    await _onSignedIn(
+        token.toString(), data['user']?['name']?.toString(), acct);
   }
 
   // ── Google (Kuklabs SSO deep-link flow) ──
@@ -173,10 +218,8 @@ class CalSync {
           ? 'Google sign-in failed. Please try again.'
           : msg);
     }
-    _token = token.toString();
-    userName = (b['name'] ?? '').toString();
-    await _save();
-    await _ensureCompany();
+    final acct = (b['id'] ?? b['email'] ?? b['name'])?.toString();
+    await _onSignedIn(token.toString(), b['name']?.toString(), acct);
   }
 
   /// Create a new KukLabs account (step 1) — the server emails a 6-digit
@@ -202,10 +245,9 @@ class CalSync {
     final data = await _mutate('auth.verifyOtp', {'email': email, 'otp': otp});
     final token = data is Map ? data['token'] : null;
     if (token == null) throw Exception('Verification failed');
-    _token = token.toString();
-    userName = (data['user']?['name'] ?? '').toString();
-    await _save();
-    await _ensureCompany();
+    final acct = (data['user']?['id'] ?? email).toString();
+    await _onSignedIn(
+        token.toString(), data['user']?['name']?.toString(), acct);
   }
 
   /// Re-send the sign-up verification code.
