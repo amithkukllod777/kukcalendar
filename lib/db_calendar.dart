@@ -128,6 +128,43 @@ extension CalendarStore on AppDb {
         where: 'name = ?', whereArgs: [name]);
   }
 
+  /// All local calendars with full metadata, for pushing to the cloud (SYNC-1).
+  Future<List<Map<String, dynamic>>> getListsForSync() async {
+    final d = await db;
+    await _ensureCalendarTable(d);
+    final rows = await d.query('calendar_lists');
+    return rows
+        .map((r) => <String, dynamic>{
+              'name': (r['name'] as String?) ?? '',
+              'color': (r['color'] as String?) ?? 'blue',
+              'visible': ((r['visible'] as int?) ?? 1) == 1,
+              'sortOrder': (r['sort_order'] as int?) ?? 0,
+            })
+        .where((m) => (m['name'] as String).isNotEmpty)
+        .toList();
+  }
+
+  /// Merge cloud calendars (colour / visibility / order) into the local store
+  /// so a second device restores the full custom-calendar structure (SYNC-1).
+  Future<void> applyRemoteLists(List<Map<String, dynamic>> lists) async {
+    final d = await db;
+    await _ensureCalendarTable(d);
+    for (final l in lists) {
+      final name = (l['name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      await d.insert(
+        'calendar_lists',
+        {
+          'name': name,
+          'color': (l['color'] as String?) ?? 'blue',
+          'visible': (l['visible'] == true) ? 1 : 0,
+          'sort_order': (l['sortOrder'] as int?) ?? 0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+  }
+
   Future<void> addCalendarList(String name, String color) async {
     final d = await db;
     await _ensureCalendarTable(d);

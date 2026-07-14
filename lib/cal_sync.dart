@@ -305,6 +305,21 @@ class CalSync {
       await AppDb.instance.applyRemoteEvents(
           remote.map((e) => Map<String, dynamic>.from(e as Map)).toList());
     }
+
+    // Custom-calendar metadata sync (SYNC-1) — colour / visibility / order.
+    // Best-effort: never let it break event sync (older backend / offline).
+    try {
+      final localLists = await AppDb.instance.getListsForSync();
+      if (localLists.isNotEmpty) {
+        await _mutate('calendar.pushLists', {'lists': localLists});
+      }
+      final remoteLists = await _query('calendar.pullLists');
+      if (remoteLists is List) {
+        await AppDb.instance.applyRemoteLists(remoteLists
+            .map((l) => Map<String, dynamic>.from(l as Map))
+            .toList());
+      }
+    } catch (_) {/* older backend / offline — skip list metadata sync */}
     return 'Synced';
   }
 }
