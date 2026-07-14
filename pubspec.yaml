@@ -12,6 +12,8 @@ dependencies:
   sqflite: ^2.3.3
   path: ^1.8.3
   shared_preferences: ^2.2.3
+  # SEC-1: Keystore-backed secure storage for the auth Bearer token.
+  flutter_secure_storage: ^9.2.2
   intl: ^0.19.0
   dio: ^5.4.3+1
   uuid: ^4.3.3
