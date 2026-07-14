@@ -1,7 +1,14 @@
+import 'dart:developer' as dev;
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import 'db.dart';
 import 'reminder_logic.dart' as rl;
+
+/// True for the "duplicate column name" error SQLite raises when an additive
+/// ALTER re-runs on a column that already exists — the one and only case the
+/// lazy schema migration is allowed to ignore. Anything else is a real failure.
+bool _isDuplicateColumn(Object e) =>
+    e.toString().toLowerCase().contains('duplicate column');
 
 // Thin delegates to the pure, unit-tested logic in reminder_logic.dart. Keeping
 // these names avoids churn at the call sites below.
@@ -33,7 +40,10 @@ extension CalendarStore on AppDb {
         created_at TEXT NOT NULL
       )
     ''');
-    // Additive columns (idempotent — ALTER throws if the column already exists).
+    // Additive columns — lazy migration. Each ALTER throws "duplicate column
+    // name" once the column exists, which is expected and ignored; ANY OTHER
+    // failure (corruption, disk full, locked db) is surfaced as a log
+    // breadcrumb instead of being silently swallowed (qa-audit DATA-2).
     for (final col in const [
       "category TEXT DEFAULT 'My calendar'",
       "recurrence TEXT DEFAULT 'none'", // none/daily/weekly/monthly/yearly
@@ -45,7 +55,12 @@ extension CalendarStore on AppDb {
     ]) {
       try {
         await d.execute('ALTER TABLE calendar_events ADD COLUMN $col');
-      } catch (_) {/* already exists */}
+      } catch (e) {
+        if (!_isDuplicateColumn(e)) {
+          dev.log('calendar_events ADD COLUMN failed ($col)',
+              name: 'kukcal.db', error: e);
+        }
+      }
     }
     // Backfill a stable client_key for any pre-sync rows so they can sync.
     try {
@@ -55,7 +70,9 @@ extension CalendarStore on AppDb {
         await d.update('calendar_events', {'client_key': const Uuid().v4()},
             where: 'id = ?', whereArgs: [m['id']]);
       }
-    } catch (_) {/* ignore */}
+    } catch (e) {
+      dev.log('client_key backfill skipped', name: 'kukcal.db', error: e);
+    }
     await _ensureLists(d);
   }
 
