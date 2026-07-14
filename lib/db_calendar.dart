@@ -369,8 +369,11 @@ extension CalendarStore on AppDb {
           : _expandOccurrences(base, rec, from, to);
       final allDay = ((r['all_day'] as int?) ?? 1) == 1;
       final st = (r['start_time'] as String?) ?? '';
-      var hh = 9, mm = 0; // all-day events remind relative to 09:00
-      if (!allDay && st.contains(':')) {
+      // Reminder anchor: timed events use their start time; all-day events use
+      // the user-chosen "Remind at" clock time (also stored in start_time,
+      // default 09:00), so an all-day reminder fires at a controllable moment.
+      var hh = 9, mm = 0;
+      if (st.contains(':')) {
         final p = st.split(':');
         hh = int.tryParse(p[0]) ?? 9;
         mm = int.tryParse(p[1]) ?? 0;
