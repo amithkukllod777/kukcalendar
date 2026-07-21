@@ -1,6 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../db.dart';
+import '../ics.dart';
 import '../db_calendar.dart';
 import '../money.dart';
 import '../theme/app_theme.dart';
@@ -172,6 +177,52 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     _taskOverlay = items;
     if (mounted) await _load(); // re-merge overlay + events, then render
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  /// Export all local events to a standard .ics file and open the share sheet.
+  Future<void> _exportIcs() async {
+    try {
+      final events = await AppDb.instance.exportableEvents();
+      if (events.isEmpty) {
+        _toast('No events to export');
+        return;
+      }
+      final ics = generateIcs(events, stamp: DateTime.now());
+      final dir = await getTemporaryDirectory();
+      final f = File('${dir.path}/kuk-calendar.ics');
+      await f.writeAsString(ics);
+      await Share.shareXFiles([XFile(f.path)],
+          subject: 'Kuk Calendar export');
+    } catch (_) {
+      _toast('Export failed');
+    }
+  }
+
+  /// Pick an .ics file and import its events into the local calendar.
+  Future<void> _importIcs() async {
+    try {
+      final res = await FilePicker.platform.pickFiles(type: FileType.any);
+      final path = res?.files.single.path;
+      if (path == null) return;
+      final text = await File(path).readAsString();
+      final events = parseIcs(text);
+      if (events.isEmpty) {
+        _toast('No events found in that file');
+        return;
+      }
+      final n = await AppDb.instance.importIcsEvents(events);
+      await _load();
+      if (CalSync.instance.isLoggedIn) _syncNow(silent: true);
+      _toast('Imported $n event${n == 1 ? '' : 's'}');
+    } catch (_) {
+      _toast('Import failed');
+    }
   }
 
   Future<void> _signIn() async {
@@ -688,6 +739,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
               onTap: () {
                 Navigator.pop(context);
                 _goToday();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.ios_share_outlined),
+              title: const Text('Export to .ics'),
+              onTap: () {
+                Navigator.pop(context);
+                _exportIcs();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.file_download_outlined),
+              title: const Text('Import .ics file'),
+              onTap: () {
+                Navigator.pop(context);
+                _importIcs();
               },
             ),
             ListTile(
