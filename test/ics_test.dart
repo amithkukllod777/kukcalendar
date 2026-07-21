@@ -5,7 +5,7 @@ void main() {
   group('generateIcs', () {
     test('emits a well-formed VCALENDAR with a DATE all-day event', () {
       final ics = generateIcs([
-        const IcsEvent(title: 'Holiday', startDate: _d, allDay: true),
+        IcsEvent(title: 'Holiday', startDate: _d, allDay: true),
       ]);
       expect(ics, contains('BEGIN:VCALENDAR'));
       expect(ics, contains('VERSION:2.0'));
@@ -20,7 +20,7 @@ void main() {
 
     test('escapes RFC 5545 special chars in text', () {
       final ics = generateIcs([
-        const IcsEvent(
+        IcsEvent(
             title: 'Lunch, with; team\nback-to-back', startDate: _d),
       ]);
       expect(ics, contains(r'SUMMARY:Lunch\, with\; team\nback-to-back'));
@@ -28,7 +28,7 @@ void main() {
 
     test('timed event emits DATE-TIME DTSTART/DTEND', () {
       final ics = generateIcs([
-        const IcsEvent(
+        IcsEvent(
             title: 'Standup',
             startDate: _d,
             startTime: '09:30',
@@ -43,7 +43,7 @@ void main() {
   group('parseIcs round-trips generateIcs', () {
     test('all-day event survives export → import', () {
       final src = [
-        const IcsEvent(title: 'Trip', startDate: _d, endDate: _d2, allDay: true),
+        IcsEvent(title: 'Trip', startDate: _d, endDate: _d2, allDay: true),
       ];
       final back = parseIcs(generateIcs(src));
       expect(back.length, 1);
@@ -56,7 +56,7 @@ void main() {
 
     test('timed event survives export → import', () {
       final src = [
-        const IcsEvent(
+        IcsEvent(
             title: 'Call',
             startDate: _d,
             startTime: '14:15',
@@ -71,7 +71,7 @@ void main() {
 
     test('escaped text + location round-trips', () {
       final src = [
-        const IcsEvent(
+        IcsEvent(
             title: 'A, B; C',
             location: 'Room; 2',
             description: 'line1\nline2',
@@ -111,5 +111,5 @@ void main() {
   });
 }
 
-const _d = DateTime(2026, 7, 14);
-const _d2 = DateTime(2026, 7, 15);
+final _d = DateTime(2026, 7, 14);
+final _d2 = DateTime(2026, 7, 15);
