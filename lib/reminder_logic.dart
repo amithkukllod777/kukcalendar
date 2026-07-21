@@ -29,47 +29,85 @@ DateTime safeDate(int y, int m, int day) {
   return DateTime(y, m, day > lastDay ? lastDay : day);
 }
 
-/// Occurrence dates (date-only) of a recurring event within [from]‥[to].
-/// `rec` is one of 'none'/''/'daily'/'weekly'/'monthly'/'yearly'.
+/// A parsed recurrence rule. The stored/synced `recurrence` field is a compact
+/// string that is backward-compatible with the old presets:
+///   'none' / '' / 'daily' / 'weekly' / 'monthly' / 'yearly'   → interval 1, no end
+///   'weekly:2' / 'monthly:3'                                   → every N, no end
+///   'weekly:2:2026-12-31'                                      → every N, until date
+class Recurrence {
+  final String type; // none/daily/weekly/monthly/yearly
+  final int interval; // every N (>= 1)
+  final DateTime? until; // inclusive last date, or null for open-ended
+  const Recurrence(this.type, this.interval, this.until);
+  bool get repeats => type != 'none' && type.isNotEmpty;
+}
+
+Recurrence parseRecurrence(String? raw) {
+  final s = (raw ?? '').trim();
+  if (s.isEmpty || s == 'none') return const Recurrence('none', 1, null);
+  final parts = s.split(':');
+  final type = parts[0];
+  var interval = parts.length >= 2 ? (int.tryParse(parts[1]) ?? 1) : 1;
+  if (interval < 1) interval = 1;
+  DateTime? until;
+  if (parts.length >= 3 && parts[2].isNotEmpty) {
+    try {
+      final d = DateTime.parse(parts[2]);
+      until = DateTime(d.year, d.month, d.day);
+    } catch (_) {/* leave open-ended */}
+  }
+  return Recurrence(type, interval, until);
+}
+
+/// Compose the compact recurrence string. Emits the plain preset when there is
+/// nothing custom, so old readers stay compatible.
+String buildRecurrence(String type, int interval, DateTime? until) {
+  if (type == 'none' || type.isEmpty) return 'none';
+  final i = interval < 1 ? 1 : interval;
+  if (i == 1 && until == null) return type;
+  return '$type:$i:${until == null ? '' : dateKey(until)}';
+}
+
+/// Occurrence dates (date-only) of a recurring event within [from]‥[to],
+/// honouring the "every N" interval and an optional until date.
 List<DateTime> expandOccurrences(
     DateTime base, String rec, DateTime from, DateTime to) {
+  final rule = parseRecurrence(rec);
   base = DateTime(base.year, base.month, base.day);
   from = DateTime(from.year, from.month, from.day);
-  to = DateTime(to.year, to.month, to.day);
+  var end = DateTime(to.year, to.month, to.day);
+  if (rule.until != null && rule.until!.isBefore(end)) end = rule.until!;
   final out = <DateTime>[];
-  if (base.isAfter(to)) return out; // series begins after the window
+  if (!rule.repeats || base.isAfter(end)) return out;
+  final step = rule.interval;
   var guard = 0;
-  switch (rec) {
+  switch (rule.type) {
     case 'daily':
-      {
-        var dd = from.isAfter(base) ? from : base;
-        while (!dd.isAfter(to) && guard++ < 1000) {
-          out.add(dd);
-          dd = dd.add(const Duration(days: 1));
-        }
-      }
     case 'weekly':
       {
+        final stepDays = (rule.type == 'weekly' ? 7 : 1) * step;
         var dd = base;
-        while (dd.isBefore(from) && guard++ < 6000) {
-          dd = dd.add(const Duration(days: 7));
+        if (dd.isBefore(from)) {
+          // Jump forward to the first on-cadence occurrence >= from.
+          final k = (from.difference(dd).inDays + stepDays - 1) ~/ stepDays;
+          dd = base.add(Duration(days: k * stepDays));
         }
-        while (!dd.isAfter(to) && guard++ < 1000) {
-          if (!dd.isBefore(base)) out.add(dd);
-          dd = dd.add(const Duration(days: 7));
+        while (!dd.isAfter(end) && guard++ < 4000) {
+          out.add(dd);
+          dd = dd.add(Duration(days: stepDays));
         }
       }
     case 'monthly':
       {
         var y = base.year, m = base.month;
         final day = base.day;
-        while (guard++ < 3000) {
+        while (guard++ < 4000) {
           final occ = safeDate(y, m, day);
-          if (occ.isAfter(to)) break;
+          if (occ.isAfter(end)) break;
           if (!occ.isBefore(from) && !occ.isBefore(base)) out.add(occ);
-          m++;
-          if (m > 12) {
-            m = 1;
+          m += step;
+          while (m > 12) {
+            m -= 12;
             y++;
           }
         }
@@ -78,11 +116,11 @@ List<DateTime> expandOccurrences(
       {
         var y = base.year;
         final m = base.month, day = base.day;
-        while (guard++ < 500) {
+        while (guard++ < 2000) {
           final occ = safeDate(y, m, day);
-          if (occ.isAfter(to)) break;
+          if (occ.isAfter(end)) break;
           if (!occ.isBefore(from) && !occ.isBefore(base)) out.add(occ);
-          y++;
+          y += step;
         }
       }
   }
