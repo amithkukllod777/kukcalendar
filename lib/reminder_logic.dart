@@ -65,7 +65,8 @@ String buildRecurrence(String type, int interval, DateTime? until) {
   if (type == 'none' || type.isEmpty) return 'none';
   final i = interval < 1 ? 1 : interval;
   if (i == 1 && until == null) return type;
-  return '$type:$i:${until == null ? '' : dateKey(until)}';
+  if (until == null) return '$type:$i';
+  return '$type:$i:${dateKey(until)}';
 }
 
 /// Occurrence dates (date-only) of a recurring event within [from]‥[to],
