@@ -71,6 +71,51 @@ void main() {
     });
   });
 
+  group('custom recurrence (interval + until)', () {
+    test('parseRecurrence handles presets + rich forms', () {
+      expect(parseRecurrence('none').repeats, isFalse);
+      expect(parseRecurrence('').repeats, isFalse);
+      final w = parseRecurrence('weekly');
+      expect([w.type, w.interval, w.until], ['weekly', 1, null]);
+      final w2 = parseRecurrence('weekly:2');
+      expect([w2.type, w2.interval, w2.until], ['weekly', 2, null]);
+      final w3 = parseRecurrence('monthly:3:2026-12-31');
+      expect(w3.type, 'monthly');
+      expect(w3.interval, 3);
+      expect(w3.until, DateTime(2026, 12, 31));
+      // Bad interval clamps to >=1.
+      expect(parseRecurrence('daily:0').interval, 1);
+    });
+
+    test('buildRecurrence round-trips + stays backward-compatible', () {
+      expect(buildRecurrence('none', 1, null), 'none');
+      expect(buildRecurrence('weekly', 1, null), 'weekly'); // compact preset
+      expect(buildRecurrence('weekly', 2, null), 'weekly:2');
+      expect(buildRecurrence('monthly', 3, DateTime(2026, 12, 31)),
+          'monthly:3:2026-12-31');
+    });
+
+    test('every-2-weeks skips alternate weeks', () {
+      final occ = expandOccurrences(DateTime(2026, 7, 2), 'weekly:2',
+          DateTime(2026, 7, 1), DateTime(2026, 7, 31));
+      expect(occ, [DateTime(2026, 7, 2), DateTime(2026, 7, 16), DateTime(2026, 7, 30)]);
+    });
+
+    test('until date caps the series', () {
+      final occ = expandOccurrences(DateTime(2026, 7, 1), 'daily:1:2026-07-05',
+          DateTime(2026, 7, 1), DateTime(2026, 7, 31));
+      expect(occ.last, DateTime(2026, 7, 5));
+      expect(occ.length, 5);
+    });
+
+    test('every-2-months from an old base aligns into the window', () {
+      final occ = expandOccurrences(DateTime(2025, 1, 15), 'monthly:2',
+          DateTime(2026, 7, 1), DateTime(2026, 12, 31));
+      // Jan 2025 + even months → Jul, Sep, Nov 2026 land in-window.
+      expect(occ, [DateTime(2026, 7, 15), DateTime(2026, 9, 15), DateTime(2026, 11, 15)]);
+    });
+  });
+
   group('reminderFireTime', () {
     final now = DateTime(2026, 7, 14, 8, 0); // 08:00
     final occ = DateTime(2026, 7, 15); // tomorrow

@@ -8,6 +8,7 @@ import '../widgets/ui_kit.dart';
 import '../app_info.dart';
 import '../cal_sync.dart';
 import '../notifications.dart';
+import '../reminder_logic.dart' as rl;
 import 'calendar_tasks_screen.dart';
 import 'calendar_login_screen.dart';
 
@@ -1130,13 +1131,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
     var category = (existing?['category'] as String?) ??
         (initialDate == null ? catNames.first : catNames.first);
     if (!catNames.contains(category)) catNames.insert(0, category);
-    var recurrence = (existing?['recurrence'] as String?) ?? 'none';
+    final rec0 = rl.parseRecurrence((existing?['recurrence'] as String?) ?? 'none');
+    var recType = rec0.repeats ? rec0.type : 'none';
+    var recInterval = rec0.interval;
+    DateTime? recUntil = rec0.until;
     const recLabels = {
       'none': 'Does not repeat',
       'daily': 'Daily',
       'weekly': 'Weekly',
       'monthly': 'Monthly',
       'yearly': 'Yearly',
+    };
+    const recUnit = {
+      'daily': 'day',
+      'weekly': 'week',
+      'monthly': 'month',
+      'yearly': 'year',
     };
     var reminderMin = (existing?['reminderMin'] as int?) ?? -1;
     const remLabels = {
@@ -1322,7 +1332,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                       const SizedBox(height: 10),
                       DropdownButtonFormField<String>(
-                        value: recurrence,
+                        value: recType,
                         decoration: const InputDecoration(
                             labelText: 'Repeat',
                             prefixIcon: Icon(Icons.repeat)),
@@ -1330,8 +1340,64 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             .map((e) => DropdownMenuItem(
                                 value: e.key, child: Text(e.value)))
                             .toList(),
-                        onChanged: (v) => setSheet(() => recurrence = v ?? 'none'),
+                        onChanged: (v) => setSheet(() => recType = v ?? 'none'),
                       ),
+                      if (recType != 'none') ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Text('Every ', style: TextStyle(fontSize: 14)),
+                            SizedBox(
+                              width: 70,
+                              child: DropdownButtonFormField<int>(
+                                value: recInterval > 12 ? 12 : recInterval,
+                                isDense: true,
+                                items: [
+                                  for (var i = 1; i <= 12; i++)
+                                    DropdownMenuItem(value: i, child: Text('$i')),
+                                ],
+                                onChanged: (v) =>
+                                    setSheet(() => recInterval = v ?? 1),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '${recUnit[recType]}${recInterval > 1 ? 's' : ''}',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _pickerField(
+                                'Repeat until',
+                                recUntil == null
+                                    ? 'Forever'
+                                    : dfmt.format(recUntil!),
+                                () async {
+                                  final picked = await showDatePicker(
+                                    context: ctx,
+                                    initialDate: recUntil ?? endDate,
+                                    firstDate: startDate,
+                                    lastDate: DateTime(2100),
+                                  );
+                                  if (picked != null) {
+                                    setSheet(() => recUntil = picked);
+                                  }
+                                },
+                              ),
+                            ),
+                            if (recUntil != null)
+                              IconButton(
+                                tooltip: 'Clear end date',
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () => setSheet(() => recUntil = null),
+                              ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 10),
                       DropdownButtonFormField<int>(
                         value: reminderMin,
@@ -1406,7 +1472,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             color: color,
                             location: locCtl.text.trim(),
                             category: category,
-                            recurrence: recurrence,
+                            recurrence:
+                                rl.buildRecurrence(recType, recInterval, recUntil),
                             reminderMin: reminderMin,
                           );
                           if (ctx.mounted) Navigator.pop(ctx, true);
