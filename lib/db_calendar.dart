@@ -2,6 +2,7 @@ import 'dart:developer' as dev;
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import 'db.dart';
+import 'ics.dart';
 import 'reminder_logic.dart' as rl;
 
 /// True for the "duplicate column name" error SQLite raises when an additive
@@ -126,6 +127,53 @@ extension CalendarStore on AppDb {
     await _ensureCalendarTable(d);
     await d.update('calendar_lists', {'visible': visible ? 1 : 0},
         where: 'name = ?', whereArgs: [name]);
+  }
+
+  /// Build IcsEvent objects from all local events, for .ics export.
+  Future<List<IcsEvent>> exportableEvents() async {
+    final d = await db;
+    await _ensureCalendarTable(d);
+    final rows = await d.query('calendar_events',
+        where: 'deleted IS NULL OR deleted = 0');
+    return rows.map((r) {
+      final allDay = ((r['all_day'] as int?) ?? 1) == 1;
+      final start = _calParseDate(r['start_date']);
+      final endStr = (r['end_date'] as String?) ?? '';
+      return IcsEvent(
+        title: (r['title'] as String?)?.trim().isNotEmpty == true
+            ? r['title'] as String
+            : '(untitled)',
+        description: (r['description'] as String?),
+        location: (r['location'] as String?),
+        startDate: start,
+        endDate: endStr.isNotEmpty ? _calParseDate(endStr) : null,
+        startTime: allDay ? null : (r['start_time'] as String?),
+        endTime: allDay ? null : (r['end_time'] as String?),
+        allDay: allDay,
+      );
+    }).toList();
+  }
+
+  /// Import parsed .ics events into the local store; returns the count added.
+  /// Imported events land in an "Imported" calendar and sync like any other.
+  Future<int> importIcsEvents(List<IcsEvent> events) async {
+    var n = 0;
+    for (final e in events) {
+      if (e.title.trim().isEmpty) continue;
+      await saveCalendarEvent(
+        title: e.title,
+        description: e.description ?? '',
+        startDate: e.startDate,
+        endDate: e.endDate,
+        startTime: e.startTime ?? '',
+        endTime: e.endTime ?? '',
+        allDay: e.allDay,
+        location: e.location ?? '',
+        category: 'Imported',
+      );
+      n++;
+    }
+    return n;
   }
 
   /// All local calendars with full metadata, for pushing to the cloud (SYNC-1).
