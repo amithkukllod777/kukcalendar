@@ -1215,13 +1215,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
       'monthly': 'month',
       'yearly': 'year',
     };
-    var reminderMin = (existing?['reminderMin'] as int?) ?? -1;
+    final reminders = rl.parseReminderOffsets(
+        existing?['reminders'] as String?,
+        primary: (existing?['reminderMin'] as int?) ?? -1);
     const remLabels = {
-      -1: 'No reminder',
       0: 'At time of event',
       10: '10 minutes before',
       30: '30 minutes before',
       60: '1 hour before',
+      120: '2 hours before',
       1440: '1 day before',
     };
 
@@ -1466,21 +1468,64 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                       ],
                       const SizedBox(height: 10),
-                      DropdownButtonFormField<int>(
-                        value: reminderMin,
-                        decoration: const InputDecoration(
-                            labelText: 'Reminder',
-                            prefixIcon: Icon(Icons.notifications_outlined)),
-                        items: remLabels.entries
-                            .map((e) => DropdownMenuItem(
-                                value: e.key, child: Text(e.value)))
-                            .toList(),
-                        onChanged: (v) => setSheet(() => reminderMin = v ?? -1),
+                      Row(
+                        children: const [
+                          Icon(Icons.notifications_outlined,
+                              size: 20, color: AppColors.textSecondary),
+                          SizedBox(width: 8),
+                          Text('Reminders',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppColors.textSecondary)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          for (final m in reminders)
+                            InputChip(
+                              label: Text(remLabels[m] ?? '$m min before'),
+                              onDeleted: () =>
+                                  setSheet(() => reminders.remove(m)),
+                            ),
+                          ActionChip(
+                            avatar: const Icon(Icons.add, size: 18),
+                            label: const Text('Add'),
+                            onPressed: () async {
+                              final choice = await showModalBottomSheet<int>(
+                                context: ctx,
+                                builder: (_) => SafeArea(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      for (final e in remLabels.entries)
+                                        if (!reminders.contains(e.key))
+                                          ListTile(
+                                            title: Text(e.value),
+                                            onTap: () =>
+                                                Navigator.pop(ctx, e.key),
+                                          ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                              if (choice != null &&
+                                  !reminders.contains(choice)) {
+                                setSheet(() {
+                                  reminders.add(choice);
+                                  reminders.sort();
+                                });
+                              }
+                            },
+                          ),
+                        ],
                       ),
                       // All-day events have no start time, so let the user choose
-                      // the clock time the reminder fires (default 09:00). Without
+                      // the clock time the reminders fire (default 09:00). Without
                       // this the alarm silently anchored to a fixed 09:00.
-                      if (allDay && reminderMin >= 0) ...[
+                      if (allDay && reminders.isNotEmpty) ...[
                         const SizedBox(height: 10),
                         _pickerField('Remind at', _fmtTime(startTime),
                             () => pickTime(true)),
@@ -1541,7 +1586,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             category: category,
                             recurrence:
                                 rl.buildRecurrence(recType, recInterval, recUntil),
-                            reminderMin: reminderMin,
+                            reminders: reminders,
                           );
                           if (ctx.mounted) Navigator.pop(ctx, true);
                         },
