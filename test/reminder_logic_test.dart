@@ -116,6 +116,20 @@ void main() {
     });
   });
 
+  group('parseReminderOffsets', () {
+    test('parses, dedupes, sorts, drops negatives', () {
+      expect(parseReminderOffsets('10,60,10,-5,0'), [0, 10, 60]);
+    });
+    test('empty falls back to the primary legacy offset', () {
+      expect(parseReminderOffsets('', primary: 30), [30]);
+      expect(parseReminderOffsets(null, primary: 0), [0]);
+    });
+    test('empty with no primary is empty', () {
+      expect(parseReminderOffsets('', primary: -1), isEmpty);
+      expect(parseReminderOffsets('  '), isEmpty);
+    });
+  });
+
   group('reminderFireTime', () {
     final now = DateTime(2026, 7, 14, 8, 0); // 08:00
     final occ = DateTime(2026, 7, 15); // tomorrow

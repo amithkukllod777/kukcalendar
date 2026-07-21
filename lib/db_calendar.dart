@@ -48,7 +48,8 @@ extension CalendarStore on AppDb {
     for (final col in const [
       "category TEXT DEFAULT 'My calendar'",
       "recurrence TEXT DEFAULT 'none'", // none/daily/weekly/monthly/yearly
-      'reminder_min INTEGER DEFAULT -1', // minutes before start; -1 = none
+      'reminder_min INTEGER DEFAULT -1', // primary reminder (backward-compat / sync)
+      "reminders TEXT DEFAULT ''", // comma-separated offsets — multiple reminders
       'client_key TEXT', // stable per-event id for cloud sync
       'cloud_id INTEGER', // server row id once synced
       'dirty INTEGER DEFAULT 1', // 1 = needs push
@@ -240,9 +241,15 @@ extension CalendarStore on AppDb {
     String category = 'My calendar',
     String recurrence = 'none',
     int reminderMin = -1,
+    List<int>? reminders,
   }) async {
     final d = await db;
     await _ensureCalendarTable(d);
+    // Multiple reminders: keep the sorted list in `reminders`, and mirror the
+    // first offset into `reminder_min` (the single field that syncs / older code
+    // reads). When only reminderMin is passed, treat it as a one-item list.
+    final offsets =
+        rl.parseReminderOffsets(reminders?.join(','), primary: reminderMin);
     final values = <String, Object?>{
       'title': title,
       'description': description,
@@ -255,7 +262,8 @@ extension CalendarStore on AppDb {
       'location': location,
       'category': category,
       'recurrence': recurrence,
-      'reminder_min': reminderMin,
+      'reminder_min': offsets.isEmpty ? -1 : offsets.first,
+      'reminders': offsets.join(','),
       'dirty': 1, // needs cloud push
     };
     if (id == null) {
@@ -308,6 +316,7 @@ extension CalendarStore on AppDb {
         'category': (r['category'] as String?) ?? 'My calendar',
         'recurrence': (r['recurrence'] as String?) ?? 'none',
         'reminderMin': (r['reminder_min'] as int?) ?? -1,
+            'reminders': (r['reminders'] as String?) ?? '',
       };
     }).where((e) => (e['clientKey'] as String).isNotEmpty).toList();
   }
@@ -386,14 +395,17 @@ extension CalendarStore on AppDb {
     List<Map<String, Object?>> rows;
     try {
       rows = await d.query('calendar_events',
-          where: '(deleted IS NULL OR deleted = 0) AND reminder_min >= 0');
+          where: '(deleted IS NULL OR deleted = 0)'
+              " AND (reminder_min >= 0 OR (reminders IS NOT NULL AND reminders != ''))");
     } catch (_) {
       return const [];
     }
     final out = <Map<String, dynamic>>[];
     for (final r in rows) {
-      final remind = (r['reminder_min'] as int?) ?? -1;
-      if (remind < 0) continue;
+      // One or more reminder offsets (multiple reminders per event).
+      final offsets = rl.parseReminderOffsets(r['reminders'] as String?,
+          primary: (r['reminder_min'] as int?) ?? -1);
+      if (offsets.isEmpty) continue;
       final base = _calParseDate(r['start_date']);
       final rec = (r['recurrence'] as String?) ?? 'none';
       final occs = (rec == 'none' || rec.isEmpty)
@@ -404,22 +416,26 @@ extension CalendarStore on AppDb {
       final loc = (r['location'] as String?) ?? '';
       for (final occ in occs) {
         if (occ.isBefore(from) || occ.isAfter(to)) continue;
-        // Anchor: timed events use start_time; all-day events use the user's
-        // "Remind at" clock (also in start_time, default 09:00). Pure + tested.
-        final fireAt = rl.reminderFireTime(
-            occ: occ, startTime: st, reminderMin: remind, now: now);
-        if (fireAt == null) continue;
-        out.add({
-          'nid': '${r['id']}-${_calDateKey(occ)}'.hashCode & 0x7fffffff,
-          'title': ((r['title'] as String?)?.isNotEmpty ?? false)
-              ? r['title'] as String
-              : 'Event',
-          'body': [
-            allDay ? 'All day' : 'Starts at $st',
-            if (loc.isNotEmpty) loc,
-          ].join(' · '),
-          'fireAt': fireAt,
-        });
+        for (final remind in offsets) {
+          // Anchor: timed events use start_time; all-day events use the user's
+          // "Remind at" clock (also in start_time, default 09:00). Pure + tested.
+          final fireAt = rl.reminderFireTime(
+              occ: occ, startTime: st, reminderMin: remind, now: now);
+          if (fireAt == null) continue;
+          out.add({
+            // Unique per (event, occurrence, offset) so alarms don't collide.
+            'nid':
+                '${r['id']}-${_calDateKey(occ)}-$remind'.hashCode & 0x7fffffff,
+            'title': ((r['title'] as String?)?.isNotEmpty ?? false)
+                ? r['title'] as String
+                : 'Event',
+            'body': [
+              allDay ? 'All day' : 'Starts at $st',
+              if (loc.isNotEmpty) loc,
+            ].join(' · '),
+            'fireAt': fireAt,
+          });
+        }
       }
     }
     out.sort((a, b) =>
@@ -616,6 +632,7 @@ extension CalendarStore on AppDb {
             'category': category,
             'recurrence': recurrence,
             'reminderMin': (r['reminder_min'] as int?) ?? -1,
+            'reminders': (r['reminders'] as String?) ?? '',
             'editable': true,
           };
 

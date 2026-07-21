@@ -128,6 +128,20 @@ List<DateTime> expandOccurrences(
   return out;
 }
 
+/// Parse a comma-separated reminder-offset list into distinct, sorted minute
+/// offsets (>= 0). Falls back to [primary] (the single legacy `reminder_min`)
+/// when the list is empty. Returns [] when nothing is set.
+List<int> parseReminderOffsets(String? csv, {int primary = -1}) {
+  final set = <int>{};
+  for (final p in (csv ?? '').split(',')) {
+    final n = int.tryParse(p.trim());
+    if (n != null && n >= 0) set.add(n);
+  }
+  if (set.isEmpty && primary >= 0) set.add(primary);
+  final list = set.toList()..sort();
+  return list;
+}
+
 /// The instant a reminder should fire for one occurrence on [occ], or `null`
 /// when there is no reminder ([reminderMin] < 0) or the moment is already past
 /// (not after [now]).
