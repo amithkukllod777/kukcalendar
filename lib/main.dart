@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 import 'cal_sync.dart';
 import 'google_auth.dart';
 import 'notifications.dart';
@@ -13,6 +14,7 @@ void main() {
   // Run inside a guarded zone so uncaught errors are captured, not lost (OBS-1).
   Observability.runGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    await ThemeController.instance.load();
     try {
       await CalSync.instance.load();
     } catch (_) {/* offline / not signed in */}
@@ -56,14 +58,36 @@ class _KukCalendarAppState extends State<KukCalendarApp>
   }
 
   @override
+  void didChangePlatformBrightness() {
+    // System light/dark switched — rebuild so a "System default" theme follows.
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Kuk Calendar',
-      debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(),
-      navigatorKey: GoogleAuth.navigatorKey,
-      scaffoldMessengerKey: GoogleAuth.messengerKey,
-      home: const CalendarScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.instance,
+      builder: (context, mode, _) {
+        // Drive the AppColors token getters from the resolved brightness so the
+        // 100+ AppColors.x call sites flip with the theme.
+        final platform =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        AppColors.brightness = switch (mode) {
+          ThemeMode.light => Brightness.light,
+          ThemeMode.dark => Brightness.dark,
+          ThemeMode.system => platform,
+        };
+        return MaterialApp(
+          title: 'Kuk Calendar',
+          debugShowCheckedModeBanner: false,
+          theme: buildAppTheme(),
+          darkTheme: buildDarkTheme(),
+          themeMode: mode,
+          navigatorKey: GoogleAuth.navigatorKey,
+          scaffoldMessengerKey: GoogleAuth.messengerKey,
+          home: const CalendarScreen(),
+        );
+      },
     );
   }
 }

@@ -168,7 +168,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   InputDecoration _dec(String hint, IconData icon, {Widget? suffix}) =>
       InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.placeholder, fontSize: AuthTokens.inputTextSize),
+        hintStyle: TextStyle(color: AppColors.placeholder, fontSize: AuthTokens.inputTextSize),
         prefixIcon: Icon(icon, size: 22, color: AppColors.textMuted),
         suffixIcon: suffix,
         filled: true,
@@ -177,11 +177,11 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.6),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.6),
         ),
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
@@ -195,7 +195,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         keyboardType: TextInputType.emailAddress,
         autocorrect: false,
         textAlignVertical: TextAlignVertical.center,
-        style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
+        style: TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
         decoration: _dec('Mobile Number or Email', Icons.smartphone_outlined),
       ));
 
@@ -203,7 +203,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         controller: _password,
         obscureText: _obscure,
         textAlignVertical: TextAlignVertical.center,
-        style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
+        style: TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
         onSubmitted: (_) => onSubmit(),
         decoration: _dec(
           'Password',
@@ -296,13 +296,13 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                   onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: AppColors.surface,
-                    side: const BorderSide(color: AppColors.border),
+                    side: BorderSide(color: AppColors.border),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
+                    children: [
                       GoogleGLogo(size: 20),
                       SizedBox(width: 12),
                       Text('Continue with Google',
@@ -319,7 +319,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
 
   Widget _orDivider() => SizedBox(
         height: AuthTokens.orDividerHeight,
-        child: Row(children: const [
+        child: Row(children: [
           Expanded(child: Divider(color: AppColors.borderSubtle)),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
@@ -333,19 +333,19 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Text.rich(
           TextSpan(
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: AuthTokens.legalTextSize, color: AppColors.textMuted, height: 1.5),
             children: [
               const TextSpan(text: 'By continuing, you agree to our '),
               TextSpan(
                 text: 'Terms of Use',
-                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
                 recognizer: _termsTap,
               ),
               const TextSpan(text: ' and '),
               TextSpan(
                 text: 'Privacy Policy',
-                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
+                style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600),
                 recognizer: _privacyTap,
               ),
             ],
@@ -365,7 +365,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
           child: TextButton(
             onPressed: _busy ? null : () => _openUrl(_hostedLoginUrl),
             style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 32)),
-            child: const Text('Forgot Password?',
+            child: Text('Forgot Password?',
                 style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 14)),
           ),
         ),
@@ -378,7 +378,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
           controller: _name,
           textCapitalization: TextCapitalization.words,
           textAlignVertical: TextAlignVertical.center,
-          style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
           decoration: _dec('Full Name', Icons.person_outline),
         )),
         const SizedBox(height: 12),
@@ -388,7 +388,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
           controller: _phone,
           keyboardType: TextInputType.phone,
           textAlignVertical: TextAlignVertical.center,
-          style: const TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: AuthTokens.inputTextSize, color: AppColors.textPrimary),
           decoration: _dec('Mobile Number (with country code)', Icons.call_outlined),
         )),
         const SizedBox(height: 12),
@@ -409,7 +409,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
               ),
             ),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: Padding(
                 padding: EdgeInsets.only(top: 3),
                 child: Text(
@@ -431,7 +431,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
           maxLength: 6,
           textAlign: TextAlign.center,
           textAlignVertical: TextAlignVertical.center,
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 22, fontWeight: FontWeight.w700, letterSpacing: 10, color: AppColors.textPrimary),
           decoration: _dec('••••••', Icons.mark_email_read_outlined).copyWith(counterText: ''),
           onSubmitted: (_) => _verify(),
@@ -442,7 +442,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
         Center(
           child: TextButton(
             onPressed: _busy ? null : _resend,
-            child: const Text('Resend code',
+            child: Text('Resend code',
                 style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
           ),
         ),
@@ -461,7 +461,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             Align(
               alignment: Alignment.topLeft,
               child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: AppColors.textSecondary),
+                icon: Icon(Icons.arrow_back, color: AppColors.textSecondary),
                 onPressed: () => Navigator.maybePop(context),
               ),
             ),
@@ -493,7 +493,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const Text('Welcome to',
+                      Text('Welcome to',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                               fontSize: AuthTokens.welcomeSize,
@@ -504,7 +504,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                       FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text.rich(
-                          const TextSpan(children: [
+                          TextSpan(children: [
                             TextSpan(text: ProductBrand.nameDark, style: TextStyle(color: AppColors.textPrimary)),
                             TextSpan(text: ProductBrand.nameAccent, style: TextStyle(color: AppColors.primary)),
                           ]),
@@ -517,7 +517,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                       const SizedBox(height: 12),
                       Text(tagline,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: AuthTokens.taglineSize,
                               height: AuthTokens.taglineHeight,
                               color: AppColors.textSecondary)),
@@ -535,19 +535,19 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                         const SizedBox(height: 14),
                         Text(_notice!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                       ],
                       if (_error != null) ...[
                         const SizedBox(height: 14),
                         Text(_error!,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+                            style: TextStyle(color: AppColors.danger, fontSize: 13)),
                       ],
                       if (_mode != _Mode.verify) _googleBlock(),
                       const SizedBox(height: 24),
                       _legal(),
                       const SizedBox(height: 16),
-                      const Text.rich(
+                      Text.rich(
                         TextSpan(children: [
                           TextSpan(text: 'Powered by '),
                           TextSpan(text: 'Kuklabs', style: TextStyle(fontWeight: FontWeight.w700)),

@@ -41,7 +41,7 @@ class LoadingView extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(message!,
-                    style: const TextStyle(color: AppColors.textSecondary)),
+                    style: TextStyle(color: AppColors.textSecondary)),
               ),
           ],
         ),
@@ -73,7 +73,7 @@ class EmptyState extends StatelessWidget {
               Container(
                 width: 88,
                 height: 88,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                     color: AppColors.fill, shape: BoxShape.circle),
                 child: Icon(icon, size: 40, color: AppColors.textSecondary),
               ),
@@ -86,7 +86,7 @@ class EmptyState extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(subtitle!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: AppColors.textSecondary)),
+                      style: TextStyle(color: AppColors.textSecondary)),
                 ),
               if (actionLabel != null && onAction != null)
                 Padding(
