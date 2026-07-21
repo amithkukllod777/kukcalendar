@@ -51,7 +51,7 @@ class _CalendarTasksScreenState extends State<CalendarTasksScreen> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -128,9 +128,9 @@ class _CalendarTasksScreenState extends State<CalendarTasksScreen> {
                           .deleteCalendarTask(existing['id'] as int);
                       if (ctx.mounted) Navigator.pop(ctx, true);
                     },
-                    icon: const Icon(Icons.delete_outline,
+                    icon: Icon(Icons.delete_outline,
                         color: AppColors.danger),
-                    label: const Text('Delete',
+                    label: Text('Delete',
                         style: TextStyle(color: AppColors.danger)),
                   ),
                 const Spacer(),
@@ -246,7 +246,7 @@ class _CalendarTasksScreenState extends State<CalendarTasksScreen> {
               ],
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(right: 8),
             child:
                 Icon(Icons.chevron_right, size: 16, color: AppColors.textSecondary),

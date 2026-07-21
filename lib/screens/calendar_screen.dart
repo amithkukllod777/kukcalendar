@@ -14,6 +14,7 @@ import '../app_info.dart';
 import '../cal_sync.dart';
 import '../notifications.dart';
 import '../reminder_logic.dart' as rl;
+import '../theme/theme_controller.dart';
 import 'calendar_tasks_screen.dart';
 import 'calendar_login_screen.dart';
 
@@ -177,6 +178,34 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     _taskOverlay = items;
     if (mounted) await _load(); // re-merge overlay + events, then render
+  }
+
+  Future<void> _pickTheme() async {
+    final m = await showModalBottomSheet<ThemeMode>(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final e in const {
+              ThemeMode.system: 'System default',
+              ThemeMode.light: 'Light',
+              ThemeMode.dark: 'Dark',
+            }.entries)
+              RadioListTile<ThemeMode>(
+                value: e.key,
+                groupValue: ThemeController.instance.value,
+                title: Text(e.value),
+                onChanged: (v) => Navigator.pop(context, v),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (m != null) {
+      await ThemeController.instance.set(m);
+      if (mounted) setState(() {});
+    }
   }
 
   void _toast(String msg) {
@@ -444,7 +473,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Future<void> _openViewMenu() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -453,7 +482,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.today_outlined, color: AppColors.primary),
+              leading: Icon(Icons.today_outlined, color: AppColors.primary),
               title: const Text('Today'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -467,7 +496,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     color: v == _view ? AppColors.primary : AppColors.textSecondary),
                 title: Text(v.label),
                 trailing: v == _view
-                    ? const Icon(Icons.check, color: AppColors.primary, size: 20)
+                    ? Icon(Icons.check, color: AppColors.primary, size: 20)
                     : null,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -600,7 +629,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
               child: Row(children: [
                 Icon(Icons.calendar_month, color: AppColors.primary),
@@ -652,7 +681,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ),
               ] else
                 ListTile(
-                  leading: const Icon(Icons.cloud_sync_outlined,
+                  leading: Icon(Icons.cloud_sync_outlined,
                       color: AppColors.primary),
                   title: const Text('Sign in or create account'),
                   subtitle: const Text('Back up & sync your calendar'),
@@ -680,7 +709,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             if (kStandaloneCalendar && _lists.isNotEmpty) ...[
               const Divider(height: 1),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: Text('My calendars',
                     style: TextStyle(
@@ -758,6 +787,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.brightness_6_outlined),
+              title: const Text('Theme'),
+              subtitle: Text(ThemeController.instance.label),
+              onTap: () {
+                Navigator.pop(context);
+                _pickTheme();
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.checklist_rtl_outlined),
               title: const Text('Tasks'),
               onTap: () {
@@ -781,7 +819,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                 child: Text('Kuk Calendar $_version',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.textSecondary)),
               ),
             ],
@@ -828,7 +866,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 6),
                       child: Text(l,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 0.5,
@@ -1080,7 +1118,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     child: Text(bits.join('  ·  '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13, color: AppColors.textSecondary)),
                   ),
               ],
@@ -1092,7 +1130,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(category,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.textMuted)),
                 const SizedBox(width: 6),
                 Container(
@@ -1232,7 +1270,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -1339,7 +1377,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ]),
                     ],
                     const SizedBox(height: 14),
-                    const Text('Colour',
+                    Text('Colour',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
@@ -1469,7 +1507,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ],
                       const SizedBox(height: 10),
                       Row(
-                        children: const [
+                        children: [
                           Icon(Icons.notifications_outlined,
                               size: 20, color: AppColors.textSecondary),
                           SizedBox(width: 8),
@@ -1553,9 +1591,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 .deleteCalendarEvent(existing['refId'] as int);
                             if (ctx.mounted) Navigator.pop(ctx, true);
                           },
-                          icon: const Icon(Icons.delete_outline,
+                          icon: Icon(Icons.delete_outline,
                               color: AppColors.danger),
-                          label: const Text('Delete',
+                          label: Text('Delete',
                               style: TextStyle(color: AppColors.danger)),
                         ),
                       const Spacer(),
@@ -1669,12 +1707,12 @@ class _TimeGridState extends State<_TimeGrid> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                     border: Border(
                         left: BorderSide(color: AppColors.border, width: .5))),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Text(DateFormat('EEE').format(d),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 11, color: AppColors.textSecondary)),
                   const SizedBox(height: 2),
                   Container(
@@ -1720,7 +1758,7 @@ class _TimeGridState extends State<_TimeGrid> {
                           right: 6,
                           child: Text(_fmtTime('${h.toString().padLeft(2, '0')}:00')
                               .replaceAll(':00', ''),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 10,
                                   color: AppColors.textSecondary)),
                         ),
@@ -1750,7 +1788,7 @@ class _AllDayRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 52,
           child: Padding(
             padding: EdgeInsets.only(top: 4, right: 6),
@@ -1765,7 +1803,7 @@ class _AllDayRow extends StatelessWidget {
             child: Container(
               constraints: const BoxConstraints(minHeight: 22),
               padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                   border: Border(
                       left: BorderSide(color: AppColors.border, width: .5))),
               child: Column(
@@ -1818,7 +1856,7 @@ class _DayColumn extends StatelessWidget {
         .toList();
     final laid = _layoutColumns(timed);
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
           border:
               Border(left: BorderSide(color: AppColors.border, width: .5))),
       child: LayoutBuilder(builder: (context, constraints) {
@@ -1836,7 +1874,7 @@ class _DayColumn extends StatelessWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => onSlot(day, h),
                   child: Container(
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                         border: Border(
                             top: BorderSide(
                                 color: AppColors.border, width: .4))),
@@ -1897,7 +1935,7 @@ class _DayColumn extends StatelessWidget {
                     Container(
                       width: 8,
                       height: 8,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                           color: AppColors.danger, shape: BoxShape.circle),
                     ),
                     Expanded(
@@ -1994,7 +2032,7 @@ class _EventSearchDelegate extends SearchDelegate<void> {
 
   Widget _results() {
     if (query.trim().isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text('Search your events',
@@ -2010,7 +2048,7 @@ class _EventSearchDelegate extends SearchDelegate<void> {
         }
         final items = snap.data!;
         if (items.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
               padding: EdgeInsets.all(24),
               child: Text('No matching events',
