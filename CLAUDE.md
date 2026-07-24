@@ -47,7 +47,10 @@ a version string).
 - `lib/screens/calendar_screen.dart` — the calendar (offline-first, sqflite).
 - `lib/screens/calendar_login_screen.dart` — the Kuklabs auth shell.
 - `lib/cal_sync.dart` — tRPC-over-HTTP client for the shared backend
-  (`auth.*`, `calendar.pull`/`push`, `company.*`, Google `/status` + `/app-exchange`).
+  (`auth.*`, `workspace.getOrCreatePersonal` for the deterministic personal
+  workspace — NOT `company.list`/`list.first`; `calendar.pull`/`push` +
+  `pullLists`/`pushLists`; `tasks.myUpcoming` read overlay; Google `/status` +
+  `/app-exchange`). The auth token is kept in `flutter_secure_storage` (Keystore).
 - `lib/google_auth.dart` — Google SSO deep-link flow + official G logo.
 - `lib/notifications.dart` — event reminder OS notifications.
 - `lib/kuklabs/` — vendored standard: product brand, auth tokens, auth messages.
