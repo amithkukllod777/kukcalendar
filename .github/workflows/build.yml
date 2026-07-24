@@ -1,18 +1,21 @@
 name: Build Kuk Calendar APK
 
-# Builds the standalone Kuk Calendar Android APK + Play Store AAB and (on main)
-# publishes them to the "latest" release. The repo keeps only pubspec.yaml +
-# lib/ + assets/; the native android/ scaffolding is generated fresh by
+# Builds the standalone Kuk Calendar Android APK + Play Store AAB and publishes
+# them to the "latest" release. The repo keeps only pubspec.yaml + lib/ +
+# assets/; the native android/ scaffolding is generated fresh by
 # `flutter create` here.
 #
 # Release signing: when the four ANDROID_* keystore secrets are set the APK/AAB
 # are signed with the upload keystore (Play-ready). Without them the build
 # still succeeds but is debug-signed (installable for testing, NOT uploadable
 # to Play). Generate a keystore with the "Kuk Calendar keystore" workflow.
+#
+# 🚫 OWNER MANDATE (2026-07-24): NO automatic APK/AAB builds. This workflow is
+# MANUAL-ONLY (workflow_dispatch). Do NOT add push / pull_request / schedule
+# triggers — builds run only when the owner explicitly starts one from the
+# Actions tab. See the "No auto app builds" golden rule in CLAUDE.md.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, "claude/**"]
 
 permissions:
   contents: write
