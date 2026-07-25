@@ -295,6 +295,24 @@ extension CalendarStore on AppDb {
 
   // ─── Cloud sync helpers (used by CalSync) ─────────────────────────────────
   /// Local rows that still need to be pushed (new/edited/deleted).
+  // Local wall-clock (YYYY-MM-DD + HH:mm) → absolute UTC instant (ISO-8601),
+  // using the device timezone. This is the timezone-first dual-write: sending
+  // the absolute moment lets the web show a phone-created event at the correct
+  // wall-clock in a different timezone. All-day events stay floating (null).
+  String? _localToUtcIso(String ymd, String hhmm) {
+    if (ymd.isEmpty || !hhmm.contains(':')) return null;
+    final dp = ymd.split('-');
+    final tp = hhmm.split(':');
+    if (dp.length < 3) return null;
+    final y = int.tryParse(dp[0]);
+    final mo = int.tryParse(dp[1]);
+    final d = int.tryParse(dp[2]);
+    if (y == null || mo == null || d == null) return null;
+    final h = int.tryParse(tp[0]) ?? 0;
+    final mi = int.tryParse(tp.length > 1 ? tp[1] : '0') ?? 0;
+    return DateTime(y, mo, d, h, mi).toUtc().toIso8601String();
+  }
+
   Future<List<Map<String, dynamic>>> getDirtyEvents() async {
     final d = await db;
     await _ensureCalendarTable(d);
@@ -316,7 +334,18 @@ extension CalendarStore on AppDb {
         'category': (r['category'] as String?) ?? 'My calendar',
         'recurrence': (r['recurrence'] as String?) ?? 'none',
         'reminderMin': (r['reminder_min'] as int?) ?? -1,
-            'reminders': (r['reminders'] as String?) ?? '',
+        'reminders': (r['reminders'] as String?) ?? '',
+        // Timezone-first dual-write (phone → web cross-timezone correctness).
+        'startAtUtc': allDay
+            ? null
+            : _localToUtcIso((r['start_date'] as String?) ?? '', (r['start_time'] as String?) ?? ''),
+        'endAtUtc': allDay
+            ? null
+            : _localToUtcIso(
+                ((r['end_date'] as String?) ?? '').isNotEmpty
+                    ? (r['end_date'] as String)
+                    : ((r['start_date'] as String?) ?? ''),
+                (r['end_time'] as String?) ?? ''),
       };
     }).where((e) => (e['clientKey'] as String).isNotEmpty).toList();
   }
