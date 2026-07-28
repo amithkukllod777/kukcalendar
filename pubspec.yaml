@@ -28,6 +28,8 @@ dependencies:
   url_launcher: ^6.3.0
   app_links: 6.3.2       # receives the kukcalendar://auth Google SSO deep link
   flutter_svg: ^2.0.10    # renders the real multi-colour Google "G" logo
+  device_calendar: 4.3.3  # READ-ONLY mirror of the phone's system calendars
+                          # (surfaces Google's Gmail-parsed events, no email access)
 
 dev_dependencies:
   flutter_test:
