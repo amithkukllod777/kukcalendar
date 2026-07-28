@@ -212,8 +212,14 @@ class CalSync {
   /// Trade the one-time deep-link code for the same Bearer session token
   /// directLogin issues, then bootstrap the workspace.
   Future<void> googleExchange(String code) async {
-    final res = await _dio.getUri(
-        Uri.parse('$base/api/auth/google/app-exchange?code=${Uri.encodeComponent(code)}'));
+    // SEC-004: send the one-time code in the POST body, not the URL query — query
+    // strings leak into server/proxy access logs and client history. The server
+    // registers both, but POST is the hardened path.
+    final res = await _dio.postUri(
+      Uri.parse('$base/api/auth/google/app-exchange'),
+      data: {'code': code},
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
     final b = _asJson(res.data);
     final token = b is Map ? b['token'] : null;
     if (token == null) {
