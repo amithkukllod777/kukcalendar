@@ -27,10 +27,24 @@ class GoogleAuth {
 
   static Future<bool>? _enabledFut;
 
-  /// Cached availability probe — hides the Google button on deployments that
-  /// don't have OAuth credentials configured (one network call per app run).
-  static Future<bool> enabled() =>
-      _enabledFut ??= CalSync.instance.googleEnabled();
+  /// Availability probe — hides the Google button only where the server has no
+  /// OAuth credentials. Caches ONLY a positive result: a false/failed probe
+  /// (cold-start before the network is ready, or credentials enabled server-side
+  /// after the app first opened) is not cached, so the next check can reveal the
+  /// button instead of it staying hidden until the app is force-closed.
+  static Future<bool> enabled() {
+    final cached = _enabledFut;
+    if (cached != null) return cached;
+    final fut = CalSync.instance.googleEnabled();
+    _enabledFut = fut;
+    fut.then((ok) {
+      if (!ok) _enabledFut = null; // drop the negative result → re-probe next call
+    }).catchError((_) {
+      _enabledFut = null;
+      return false;
+    });
+    return fut;
+  }
 
   StreamSubscription<Uri>? _sub;
   String? _lastCode; // codes are one-time; never exchange the same one twice

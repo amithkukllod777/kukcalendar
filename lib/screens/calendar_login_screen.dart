@@ -32,6 +32,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   final _otp = TextEditingController();
   _Mode _mode = _Mode.signIn;
   bool _busy = false;
+  bool _googleEnabled = false; // server has Google OAuth configured (probed)
   bool _obscure = true;
   bool _acceptedTerms = false;
   String? _error;
@@ -43,6 +44,31 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
       TapGestureRecognizer()..onTap = () => _openUrl(ProductBrand.privacyUrl);
 
   static const String _hostedLoginUrl = 'https://www.kuklabs.com/login';
+
+  @override
+  void initState() {
+    super.initState();
+    _probeGoogle();
+  }
+
+  /// Reveal the Google button as soon as the server reports OAuth is configured.
+  /// Retries a few times so a cold-start network miss (or credentials enabled
+  /// server-side after the app opened) doesn't leave the button hidden — once
+  /// enabled, it stays. Cheap GET; stops on the first positive result.
+  Future<void> _probeGoogle() async {
+    for (var i = 0; i < 5 && mounted && !_googleEnabled; i++) {
+      bool ok = false;
+      try {
+        ok = await CalSync.instance.googleEnabled();
+      } catch (_) {/* offline / transient — retry below */}
+      if (!mounted) return;
+      if (ok) {
+        setState(() => _googleEnabled = true);
+        return;
+      }
+      await Future.delayed(const Duration(seconds: 3));
+    }
+  }
 
   @override
   void dispose() {
@@ -280,42 +306,39 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
 
   // Continue with Google (Kuklabs SSO deep-link flow) + official multi-colour
   // logo. Rendered only when the server reports OAuth is configured.
-  Widget _googleBlock() => FutureBuilder<bool>(
-        future: GoogleAuth.enabled(),
-        builder: (context, snap) {
-          if (snap.data != true) return const SizedBox.shrink();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              _orDivider(),
-              const SizedBox(height: 20),
-              SizedBox(
-                height: AuthTokens.googleButtonHeight,
-                child: OutlinedButton(
-                  onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: AppColors.surface,
-                    side: BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      GoogleGLogo(size: 20),
-                      SizedBox(width: 12),
-                      Text('Continue with Google',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      );
+  Widget _googleBlock() {
+    if (!_googleEnabled) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 20),
+        _orDivider(),
+        const SizedBox(height: 20),
+        SizedBox(
+          height: AuthTokens.googleButtonHeight,
+          child: OutlinedButton(
+            onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: AppColors.surface,
+              side: BorderSide(color: AppColors.border),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GoogleGLogo(size: 20),
+                SizedBox(width: 12),
+                Text('Continue with Google',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _orDivider() => SizedBox(
         height: AuthTokens.orDividerHeight,
