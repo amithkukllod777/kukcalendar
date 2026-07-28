@@ -16,7 +16,11 @@ class CalSync {
   CalSync._();
   static final CalSync instance = CalSync._();
 
-  static const String base = 'https://kuklabs.com';
+  // Canonical host. The server 301-redirects the apex kuklabs.com → www; hitting
+  // the apex from the app broke tRPC POSTs (a 301 downgrades POST→GET) and could
+  // fail TLS/SNI on the apex, surfacing as "You're offline". Target the canonical
+  // www host directly so login + the Google /status check reach the API cleanly.
+  static const String base = 'https://www.kuklabs.com';
   // Kuklabs SSO Google flow (KUKLABS_IDENTITY.md §3): open in the browser, the
   // server deep-links back to kukcalendar://auth with a one-time code.
   static const String googleStartUrl =

@@ -10,8 +10,10 @@ import '../db_calendar.dart';
 import '../money.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../app_info.dart';
 import '../cal_sync.dart';
+import '../device_calendar_overlay.dart';
 import '../notifications.dart';
 import '../reminder_logic.dart' as rl;
 import '../theme/theme_controller.dart';
@@ -65,6 +67,7 @@ const Map<String, Color> _palette = {
   'teal': Color(0xFF0D9488),
   'pink': Color(0xFFDB2777),
   'indigo': Color(0xFF4F46E5),
+  'cyan': Color(0xFF0891B2), // phone-calendar (device) overlay
 };
 Color _colorFor(String? c) => _palette[c] ?? _palette['blue']!;
 const List<String> _userColors = [
@@ -86,6 +89,7 @@ const Map<String, _Source> _sources = {
   'cheque': _Source('Cheques', Icons.account_balance_outlined, 'orange'),
   'reminder': _Source('Reminders', Icons.notifications_active_outlined, 'teal'),
   'task': _Source('KukTask', Icons.check_circle_outline, 'indigo'),
+  'device': _Source('Phone calendar', Icons.phone_android, 'cyan'),
 };
 
 final _money = Money.fmt(2);
@@ -127,6 +131,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   // Read-only KukTask due-date overlay (ARCH-1); fetched from the shared backend
   // and merged into _events so it renders like any other calendar item.
   List<Map<String, dynamic>> _taskOverlay = [];
+  // Read-only mirror of the phone's SYSTEM calendars (Google/Samsung/…). This is
+  // where Gmail-parsed events (e.g. an auto-created train booking) come from —
+  // Google already put them on the device calendar; we just display them.
+  List<Map<String, dynamic>> _deviceOverlay = [];
+  bool _showDeviceCal = false; // persisted; off until the user opts in
+  static const String _kShowDeviceCal = 'kc_show_device_cal';
   List<Map<String, dynamic>> _lists = []; // calendars/categories
   final Set<String> _hidden = {}; // hidden source keys (KukBook overlay only)
 
@@ -140,6 +150,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _selected = _focused;
     _load();
     _loadLists();
+    _initDeviceCal();
     _initSync();
     appVersionString().then((v) {
       if (mounted) setState(() => _version = v);
@@ -178,6 +189,64 @@ class _CalendarScreenState extends State<CalendarScreen> {
     }
     _taskOverlay = items;
     if (mounted) await _load(); // re-merge overlay + events, then render
+  }
+
+  /// Restore the "Phone calendar" preference and, if on, load the device layer.
+  Future<void> _initDeviceCal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _showDeviceCal = prefs.getBool(_kShowDeviceCal) ?? false;
+    } catch (_) {/* default off */}
+    if (_showDeviceCal) await _loadDeviceCal();
+    if (mounted) setState(() {});
+  }
+
+  /// Read the phone's system calendars for a wide window around the focused month
+  /// and merge them as a read-only layer. Safe when denied/unsupported (empty).
+  Future<void> _loadDeviceCal() async {
+    if (!_showDeviceCal) {
+      _deviceOverlay = [];
+      if (mounted) await _load();
+      return;
+    }
+    final granted = await DeviceCalendarOverlay.instance.ensurePermission();
+    if (!granted) {
+      _deviceOverlay = [];
+      if (mounted) await _load();
+      return;
+    }
+    // A broad window (previous month → +12 months) covers normal navigation
+    // without re-querying the provider on every step.
+    final start = DateTime(_focused.year, _focused.month - 1, 1);
+    final end = DateTime(_focused.year, _focused.month + 12, 0);
+    _deviceOverlay = await DeviceCalendarOverlay.instance.loadEvents(start, end);
+    if (mounted) await _load();
+  }
+
+  /// Toggle the phone-calendar layer from the drawer; persists the choice and, on
+  /// first enable, triggers the OS permission prompt.
+  Future<void> _toggleDeviceCal(bool on) async {
+    setState(() => _showDeviceCal = on);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kShowDeviceCal, on);
+    } catch (_) {/* non-fatal */}
+    if (on) {
+      final granted = await DeviceCalendarOverlay.instance.ensurePermission();
+      if (!granted) {
+        setState(() => _showDeviceCal = false);
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kShowDeviceCal, false);
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Calendar permission needed to show phone events.')));
+        }
+        return;
+      }
+    }
+    await _loadDeviceCal();
   }
 
   Future<void> _pickTheme() async {
@@ -277,6 +346,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       await CalSync.instance.syncNow();
       await _loadLists();
       await _loadTasks(); // refresh KukTask overlay + re-render (calls _load)
+      if (_showDeviceCal) await _loadDeviceCal(); // refresh phone-calendar layer
       if (!silent && mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Synced')));
@@ -399,7 +469,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           .aggregateEvents(from: start, to: end, eventsOnly: kStandaloneCalendar);
       if (mounted) {
         setState(() {
-          _events = [...list, ..._taskOverlay];
+          _events = [...list, ..._taskOverlay, ..._deviceOverlay];
           _loading = false;
         });
       }
@@ -707,6 +777,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   _setView(v);
                 },
               ),
+            if (kStandaloneCalendar) ...[
+              const Divider(height: 1),
+              SwitchListTile(
+                secondary: Icon(Icons.phone_android, color: _colorFor('cyan')),
+                title: const Text('Phone calendar'),
+                subtitle: const Text('Show events from this device (Google, etc.)'),
+                value: _showDeviceCal,
+                activeColor: _colorFor('cyan'),
+                onChanged: (v) => _toggleDeviceCal(v),
+              ),
+            ],
             if (kStandaloneCalendar && _lists.isNotEmpty) ...[
               const Divider(height: 1),
               Padding(

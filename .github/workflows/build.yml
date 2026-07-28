@@ -84,6 +84,12 @@ jobs:
           )
           if "POST_NOTIFICATIONS" not in m:
               m = m.replace("<application", perms + "    <application", 1)
+          # READ_CALENDAR for the read-only "Phone calendar" overlay (device_calendar).
+          if "READ_CALENDAR" not in m:
+              m = m.replace(
+                  "<application",
+                  '    <uses-permission android:name="android.permission.READ_CALENDAR"/>\n    <application',
+                  1)
           recv = (
             '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />\n'
             '        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">\n'

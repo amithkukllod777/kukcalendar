@@ -42,7 +42,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   late final TapGestureRecognizer _privacyTap =
       TapGestureRecognizer()..onTap = () => _openUrl(ProductBrand.privacyUrl);
 
-  static const String _hostedLoginUrl = 'https://kuklabs.com/login';
+  static const String _hostedLoginUrl = 'https://www.kuklabs.com/login';
 
   @override
   void dispose() {
