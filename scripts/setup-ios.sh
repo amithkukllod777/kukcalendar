@@ -29,6 +29,14 @@ PLIST=ios/Runner/Info.plist
 echo "==> Bundle id → com.kuklabs.calendar"
 sed -i '' -E 's/PRODUCT_BUNDLE_IDENTIFIER = com\.kuklabs\.kukcalendar;/PRODUCT_BUNDLE_IDENTIFIER = com.kuklabs.calendar;/g' "$PBX"
 
+echo "==> iOS deployment target → 15.0 (App Store rejects < 15; flutter create defaults to 12)"
+sed -i '' -E 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9]+(\.[0-9]+)?;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' "$PBX"
+# Podfile: flutter create leaves `# platform :ios, '12.0'` commented — set it to 15.0.
+if [ -f ios/Podfile ]; then
+  sed -i '' -E "s/^# *platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/Podfile
+  sed -i '' -E "s/^platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/Podfile
+fi
+
 echo "==> Display name → Kuk Calendar"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Kuk Calendar" "$PLIST" \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Kuk Calendar'" "$PLIST"
