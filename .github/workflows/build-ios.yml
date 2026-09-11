@@ -1,0 +1,100 @@
+name: Build Kuk Calendar iOS
+
+# Builds the standalone Kuk Calendar iOS app from the same Flutter source as the
+# Android build. The repo keeps only pubspec.yaml + lib/ + assets/; the native
+# ios/ scaffolding is generated fresh by `flutter create` here (mirrors the
+# Android workflow), then the bundle id, display name, permission usage strings
+# and the kukcalendar:// deep-link URL scheme are injected.
+#
+# 🚫 OWNER MANDATE (2026-07-24): NO automatic app builds. This workflow is
+# MANUAL-ONLY (workflow_dispatch). Do NOT add push / pull_request / schedule
+# triggers — builds run only when the owner explicitly starts one from the
+# Actions tab. See the "No auto app builds" golden rule in CLAUDE.md.
+#
+# ── Two modes ────────────────────────────────────────────────────────────────
+# 1. UNSIGNED (default, no secrets): `flutter build ios --no-codesign` — verifies
+#    the app compiles for iOS and uploads Runner.app as a CI artifact. This does
+#    NOT produce an installable app (iOS requires Apple code signing).
+# 2. SIGNED / TestFlight (when the Apple secrets below are set): archives, signs,
+#    exports a .ipa and (optionally) uploads to TestFlight. iOS apps CANNOT be
+#    side-loaded like an Android APK — distribution is TestFlight / App Store /
+#    ad-hoc (registered device UDIDs) only, all of which need an Apple Developer
+#    Program membership ($99/yr).
+#
+# Required repo secrets for the SIGNED path (owner sets these — Level C):
+#   APPLE_BUILD_CERTIFICATE_BASE64   distribution cert (.p12), base64
+#   APPLE_P12_PASSWORD               password for the .p12
+#   APPLE_PROVISIONING_PROFILE_BASE64  provisioning profile for com.kuklabs.calendar
+#   APPLE_KEYCHAIN_PASSWORD          any throwaway password for the temp keychain
+#   APPLE_TEAM_ID                    Apple Developer Team ID
+# (TestFlight upload additionally needs an App Store Connect API key — add later.)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: stable
+
+      - name: Generate iOS scaffolding (keeps lib/ + pubspec + assets)
+        run: flutter create --org com.kuklabs --project-name kukcalendar --platforms=ios .
+
+      - name: App name, bundle id, permissions + deep link
+        run: |
+          set -e
+          PBX=ios/Runner.xcodeproj/project.pbxproj
+          PLIST=ios/Runner/Info.plist
+          # Bundle id → com.kuklabs.calendar (flutter create defaults to
+          # com.kuklabs.kukcalendar; leave the .RunnerTests suffix untouched).
+          sed -i '' -E 's/PRODUCT_BUNDLE_IDENTIFIER = com\.kuklabs\.kukcalendar;/PRODUCT_BUNDLE_IDENTIFIER = com.kuklabs.calendar;/g' "$PBX"
+          # Display name "Kuk Calendar".
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Kuk Calendar" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Kuk Calendar'" "$PLIST"
+          # device_calendar needs a calendar-usage description or iOS crashes on
+          # the permission request (NSCalendarsFullAccessUsageDescription is the
+          # iOS 17+ key; the legacy NSCalendarsUsageDescription covers < 17).
+          /usr/libexec/PlistBuddy -c "Add :NSCalendarsUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :NSCalendarsFullAccessUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" || true
+          # kukcalendar:// deep link (Google SSO returns here after browser OAuth).
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.kuklabs.calendar" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kukcalendar" "$PLIST" || true
+          echo "Info.plist + bundle id configured for iOS"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (unsigned — compile verification)
+        # Signing requires the Apple secrets (see header). Until they're set, this
+        # proves the app compiles for iOS and produces Runner.app (NOT installable
+        # on a real iPhone without signing).
+        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+
+      - name: Package Runner.app as an artifact
+        run: |
+          set -e
+          mkdir -p out
+          APP=build/ios/iphoneos/Runner.app
+          if [ -d "$APP" ]; then
+            (cd build/ios/iphoneos && zip -r -q "$GITHUB_WORKSPACE/out/KukCalendar-iOS-r${{ github.run_number }}-unsigned.app.zip" Runner.app)
+            echo "Packaged $APP"
+          else
+            echo "Runner.app not found — build likely failed"; exit 1
+          fi
+
+      - name: Upload iOS build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kukcalendar-ios-unsigned
+          path: out/*.zip
+          if-no-files-found: error
