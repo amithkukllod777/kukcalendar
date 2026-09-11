@@ -71,6 +71,24 @@ jobs:
           # iOS 17+ key; the legacy NSCalendarsUsageDescription covers < 17).
           /usr/libexec/PlistBuddy -c "Add :NSCalendarsUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :NSCalendarsFullAccessUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" || true
+          # Purpose strings required by App Store review (ITMS-90683): bundled
+          # SDKs (sign_in_with_apple, share/file plugins) reference PhotoLibrary/
+          # Camera/Microphone APIs, so a user-facing purpose string is MANDATORY
+          # even though the app never invokes them. Build 1 was dropped for the
+          # missing NSPhotoLibraryUsageDescription key.
+          /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Kuk Calendar can attach a photo to an event.'" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Kuk Calendar can attach a photo to an event.'" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Kuk Calendar can attach a photo to an event.'" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Kuk Calendar can attach a photo to an event.'" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Kuk Calendar can attach a voice note to an event.'" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Kuk Calendar can attach a voice note to an event.'" "$PLIST" || true
+          # Export compliance: standard HTTPS is exempt — declare it so App Store
+          # Connect doesn't hold the build for a manual encryption answer.
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || true
+          # Short bundle name (some validators warn when missing).
+          /usr/libexec/PlistBuddy -c "Set :CFBundleName KukCalendar" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KukCalendar" "$PLIST" || true
           # kukcalendar:// deep link (Google SSO returns here after browser OAuth).
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.kuklabs.calendar" "$PLIST" || true

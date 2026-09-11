@@ -45,6 +45,28 @@ echo "==> Calendar-usage descriptions (device_calendar)"
 /usr/libexec/PlistBuddy -c "Add :NSCalendarsUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSCalendarsFullAccessUsageDescription string 'Kuk Calendar shows your device calendar events alongside your Kuklabs events.'" "$PLIST" 2>/dev/null || true
 
+echo "==> Purpose strings required by Apple review (ITMS-90683)"
+# Apple rejected build 1 with ITMS-90683: bundled SDKs (sign_in_with_apple,
+# share/file plugins) reference PhotoLibrary/Camera/Microphone APIs, so a
+# user-facing purpose string is MANDATORY even though the app never invokes them.
+# Use "Set" then fall back to "Add" so re-runs update rather than duplicate.
+/usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription 'Kuk Calendar can attach a photo to an event.'" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Kuk Calendar can attach a photo to an event.'" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'Kuk Calendar can attach a photo to an event.'" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Kuk Calendar can attach a photo to an event.'" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Kuk Calendar can attach a voice note to an event.'" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'Kuk Calendar can attach a voice note to an event.'" "$PLIST" 2>/dev/null || true
+
+echo "==> Export-compliance + bundle name (avoids the encryption prompt on every upload)"
+# ITSAppUsesNonExemptEncryption=false: the app uses only standard HTTPS, which is
+# exempt — declaring it here stops App Store Connect from holding the build for a
+# manual export-compliance answer.
+/usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" 2>/dev/null || true
+# CFBundleName (short name) — some validators warn when it is missing.
+/usr/libexec/PlistBuddy -c "Set :CFBundleName KukCalendar" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleName string KukCalendar" "$PLIST" 2>/dev/null || true
+
 echo "==> kukcalendar:// deep link (Google SSO return)"
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.kuklabs.calendar" "$PLIST" 2>/dev/null || true
