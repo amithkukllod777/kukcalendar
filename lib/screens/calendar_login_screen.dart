@@ -1,6 +1,9 @@
+import 'dart:io' show Platform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../apple_auth.dart';
 import '../cal_sync.dart';
 import '../google_auth.dart';
 import 'calendar_screen.dart';
@@ -34,6 +37,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   _Mode _mode = _Mode.signIn;
   bool _busy = false;
   bool _googleEnabled = false; // server has Google OAuth configured (probed)
+  bool _appleEnabled = false; // Sign in with Apple: shown on iOS/macOS (set in initState)
   bool _obscure = true;
   bool _acceptedTerms = false;
   String? _error;
@@ -49,14 +53,22 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   @override
   void initState() {
     super.initState();
-    _probeGoogle();
+    _probeSocial();
   }
 
   /// Reveal the Google button as soon as the server reports OAuth is configured.
   /// Retries a few times so a cold-start network miss (or credentials enabled
   /// server-side after the app opened) doesn't leave the button hidden — once
   /// enabled, it stays. Cheap GET; stops on the first positive result.
-  Future<void> _probeGoogle() async {
+  Future<void> _probeSocial() async {
+    // Sign in with Apple: shown on iOS/macOS (the native sheet is always
+    // available on iOS 13+, and Apple requires the button when other social
+    // logins exist) — no server probe needed.
+    if ((Platform.isIOS || Platform.isMacOS) && mounted) {
+      setState(() => _appleEnabled = true);
+    }
+    // Google button: revealed once the server reports OAuth is configured. Retry
+    // a few times so a cold-start miss doesn't leave it hidden; once on, it stays.
     for (var i = 0; i < 5 && mounted && !_googleEnabled; i++) {
       bool ok = false;
       try {
@@ -319,36 +331,75 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
 
   // Continue with Google (Kuklabs SSO deep-link flow) + official multi-colour
   // logo. Rendered only when the server reports OAuth is configured.
-  Widget _googleBlock() {
-    if (!_googleEnabled) return const SizedBox.shrink();
+  // Sign in with Apple (Apple HIG button). Cancel = silent; other failures map
+  // through the friendly catalogue like every other auth error.
+  Future<void> _signInApple() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      await AppleAuth.instance.signIn();
+      if (mounted) Navigator.pop(context, true);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code != AuthorizationErrorCode.canceled && mounted) {
+        setState(() => _error = AuthMessages.friendly(e));
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = AuthMessages.friendly(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _socialBlock() {
+    if (!_googleEnabled && !_appleEnabled) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 20),
         _orDivider(),
         const SizedBox(height: 20),
-        SizedBox(
-          height: AuthTokens.googleButtonHeight,
-          child: OutlinedButton(
-            onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: AppColors.surface,
-              side: BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GoogleGLogo(size: 20),
-                SizedBox(width: 12),
-                Text('Continue with Google',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-              ],
+        if (_googleEnabled)
+          SizedBox(
+            height: AuthTokens.googleButtonHeight,
+            child: OutlinedButton(
+              onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.surface,
+                side: BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AuthTokens.authControlRadius)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GoogleGLogo(size: 20),
+                  SizedBox(width: 12),
+                  Text('Continue with Google',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                ],
+              ),
             ),
           ),
-        ),
+        if (_appleEnabled) ...[
+          if (_googleEnabled) const SizedBox(height: 12),
+          SizedBox(
+            height: AuthTokens.googleButtonHeight,
+            child: SignInWithAppleButton(
+              onPressed: () {
+                if (!_busy) _signInApple();
+              },
+              height: AuthTokens.googleButtonHeight,
+              borderRadius: BorderRadius.circular(AuthTokens.authControlRadius),
+              style: Theme.of(context).brightness == Brightness.dark
+                  ? SignInWithAppleButtonStyle.white
+                  : SignInWithAppleButtonStyle.black,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -586,7 +637,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
                             textAlign: TextAlign.center,
                             style: TextStyle(color: AppColors.danger, fontSize: 13)),
                       ],
-                      if (_mode != _Mode.verify) _googleBlock(),
+                      if (_mode != _Mode.verify) _socialBlock(),
                       const SizedBox(height: 24),
                       _legal(),
                       const SizedBox(height: 16),

@@ -54,9 +54,12 @@ cat <<'DONE'
 ✅ iOS configured. Next:
    1. open ios/Runner.xcworkspace
    2. Runner target → Signing & Capabilities → select your Team (automatic signing)
-   3. Product → Archive → Distribute App → TestFlight (or App Store Connect)
+   3. Same tab → "+ Capability" → add **Sign in with Apple**
+      (Xcode creates the entitlement AND enables it on your App ID automatically.
+       Required by Apple guideline 4.8 because the app also offers Google login.)
+   4. Product → Archive → Distribute App → TestFlight (or App Store Connect)
 
-   Or from the CLI once signing is set in Xcode:
+   Or from the CLI once signing + the capability are set in Xcode:
      flutter build ipa
    (the .ipa lands in build/ios/ipa/ — upload via Transporter or Xcode Organizer)
 DONE
