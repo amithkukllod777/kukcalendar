@@ -232,6 +232,33 @@ class CalSync {
     await _onSignedIn(token.toString(), b['name']?.toString(), acct);
   }
 
+  // ── Sign in with Apple (native iOS sheet) ──
+  /// Trade Apple's identity token (+ name, released only on first sign-in) for
+  /// the same Bearer session token directLogin issues, then bootstrap. Hits the
+  /// native endpoint (verifies the token's audience = the app bundle id), NOT the
+  /// web/deep-link code flow's /app-exchange.
+  Future<void> appleExchange(String identityToken, {String? name, String? email}) async {
+    final res = await _dio.postUri(
+      Uri.parse('$base/api/auth/apple/native-exchange'),
+      data: {
+        'identityToken': identityToken,
+        if (name != null && name.isNotEmpty) 'name': name,
+        if (email != null && email.isNotEmpty) 'email': email,
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+    final b = _asJson(res.data);
+    final token = b is Map ? b['token'] : null;
+    if (token == null) {
+      final msg = (b is Map ? b['error'] : null)?.toString();
+      throw Exception((msg == null || msg.isEmpty)
+          ? 'Apple sign-in failed. Please try again.'
+          : msg);
+    }
+    final acct = (b['email'] ?? b['name'])?.toString();
+    await _onSignedIn(token.toString(), b['name']?.toString(), acct);
+  }
+
   /// Create a new KukLabs account (step 1) — the server emails a 6-digit
   /// verification code to [email]; complete with [verifyOtp].
   Future<void> register({

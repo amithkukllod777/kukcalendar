@@ -30,6 +30,8 @@ dependencies:
   flutter_svg: ^2.0.10    # renders the real multi-colour Google "G" logo
   device_calendar: 4.3.3  # READ-ONLY mirror of the phone's system calendars
                           # (surfaces Google's Gmail-parsed events, no email access)
+  sign_in_with_apple: 7.0.1  # Sign in with Apple (iOS) — required by Apple 4.8
+                             # when other social logins are offered
 
 dev_dependencies:
   flutter_test:

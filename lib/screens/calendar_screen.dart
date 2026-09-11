@@ -148,7 +148,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     _selected = _focused;
     _load();
     _loadLists();
-    _initDeviceCal();
+    // Ask for calendar permission AFTER the first frame — never during initState,
+    // so the UI is up before the OS permission dialog (and a cold-start crash on
+    // a misconfigured build can't blank the launch).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeviceCal());
     _initSync();
     appVersionString().then((v) {
       if (mounted) setState(() => _version = v);
