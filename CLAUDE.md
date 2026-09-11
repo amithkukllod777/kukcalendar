@@ -27,7 +27,7 @@ a version string).
 ## 🚫 GOLDEN RULE — NO automatic APK/AAB builds (owner mandate 2026-07-24)
 **Never build, trigger, or dispatch an Android APK or AAB (app bundle) build unless
 the owner explicitly asks for a build in that moment.**
-- `build.yml` is **`workflow_dispatch`-only (manual)**. Do **NOT** add
+- `build.yml` (Android) and `build-ios.yml` (iOS) are **`workflow_dispatch`-only (manual)**. Do **NOT** add
   `push` / `pull_request` / `schedule` triggers to it or to any app-build workflow.
 - The agent must **never** run/dispatch a build workflow on its own (no
   `actions` run-trigger for builds).
