@@ -63,6 +63,28 @@ jobs:
             sed -i '' -E "s/^# *platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/Podfile
             sed -i '' -E "s/^platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/Podfile
           fi
+          # Sign in with Apple entitlement — the login screen shows the native
+          # Apple button on iOS; without this the ASAuthorizationController sheet
+          # fails at runtime. Write Runner.entitlements and wire it into the Runner
+          # target (anchor: INFOPLIST_FILE = Runner/Info.plist; is Runner-only).
+          cat > ios/Runner/Runner.entitlements <<'ENT'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>com.apple.developer.applesignin</key>
+          	<array>
+          		<string>Default</string>
+          	</array>
+          </dict>
+          </plist>
+          ENT
+          # The heredoc above is indented for YAML; strip the leading indent so the
+          # entitlements file is valid XML.
+          sed -i '' -E 's/^          //' ios/Runner/Runner.entitlements
+          if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;" "$PBX"; then
+            sed -i '' -E 's#(INFOPLIST_FILE = Runner/Info\.plist;)#\1\'$'\n''\t\t\t\tCODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;#g' "$PBX"
+          fi
           # Display name "Kuk Calendar".
           /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Kuk Calendar" "$PLIST" \
             || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Kuk Calendar'" "$PLIST"

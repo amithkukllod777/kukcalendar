@@ -37,6 +37,31 @@ if [ -f ios/Podfile ]; then
   sed -i '' -E "s/^platform :ios, '[0-9.]+'/platform :ios, '15.0'/" ios/Podfile
 fi
 
+echo "==> Sign in with Apple entitlement (com.apple.developer.applesignin)"
+# The login screen shows the native Apple button on iOS; without this entitlement
+# the ASAuthorizationController sheet fails at runtime (error 1000 / "not handled").
+# Write it into the scaffold AND wire CODE_SIGN_ENTITLEMENTS into the Runner target
+# so a CLI archive (flutter build ipa) enables it too — not only a manual Xcode
+# "+ Capability" click. Xcode automatic signing then enables the capability on the
+# App ID when it archives with a paid team.
+cat > ios/Runner/Runner.entitlements <<'ENT'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>
+ENT
+# Anchor on `INFOPLIST_FILE = Runner/Info.plist;` — present only in the Runner
+# target's build configs, never RunnerTests — so the tests target is untouched.
+if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;" "$PBX"; then
+  sed -i '' -E 's#(INFOPLIST_FILE = Runner/Info\.plist;)#\1\'$'\n''\t\t\t\tCODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;#g' "$PBX"
+fi
+
 echo "==> Display name → Kuk Calendar"
 /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Kuk Calendar" "$PLIST" \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Kuk Calendar'" "$PLIST"
@@ -81,15 +106,18 @@ dart run flutter_launcher_icons -f flutter_launcher_icons_ios.yaml
 
 cat <<'DONE'
 
-✅ iOS configured. Next:
+✅ iOS configured (incl. Sign in with Apple entitlement). Next:
    1. open ios/Runner.xcworkspace
-   2. Runner target → Signing & Capabilities → select your Team (automatic signing)
-   3. Same tab → "+ Capability" → add **Sign in with Apple**
-      (Xcode creates the entitlement AND enables it on your App ID automatically.
-       Required by Apple guideline 4.8 because the app also offers Google login.)
-   4. Product → Archive → Distribute App → TestFlight (or App Store Connect)
+   2. Runner target → Signing & Capabilities → select your Team (automatic signing).
+      "Sign in with Apple" already appears — this script wrote Runner.entitlements
+      and wired it into the project. With a paid team, automatic signing enables the
+      capability on your App ID when it archives. (If signing complains that the App
+      ID lacks the capability, add it once at developer.apple.com → Identifiers →
+      com.kuklabs.calendar → Sign In with Apple, then re-archive. Required by Apple
+      guideline 4.8 because the app also offers Google login.)
+   3. Product → Archive → Distribute App → TestFlight (or App Store Connect)
 
-   Or from the CLI once signing + the capability are set in Xcode:
+   Or from the CLI once signing is set in Xcode:
      flutter build ipa
    (the .ipa lands in build/ios/ipa/ — upload via Transporter or Xcode Organizer)
 DONE
