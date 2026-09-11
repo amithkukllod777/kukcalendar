@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../cal_sync.dart';
 import '../google_auth.dart';
+import 'calendar_screen.dart';
 import '../kuklabs/auth_messages.dart';
 import '../kuklabs/auth_tokens.dart';
 import '../kuklabs/product_brand.dart';
@@ -80,6 +81,18 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     _termsTap.dispose();
     _privacyTap.dispose();
     super.dispose();
+  }
+
+  // Always give the user a way off the login screen: pop when it was pushed
+  // (the normal drawer path), otherwise fall back to the calendar so the back
+  // arrow / system-back can never leave them stuck here.
+  void _exit() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else {
+      nav.pushReplacement(MaterialPageRoute(builder: (_) => const CalendarScreen()));
+    }
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -476,7 +489,14 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
     final tagline = _mode == _Mode.verify
         ? 'Enter the 6-digit code we emailed to finish setting up your account.'
         : ProductBrand.tagline;
-    return Scaffold(
+    return PopScope(
+      // When this screen is the root (can't pop), intercept the system/gesture
+      // back and route to the calendar instead of leaving the user stuck.
+      canPop: Navigator.of(context).canPop(),
+      onPopInvoked: (didPop) {
+        if (!didPop) _exit();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.bg,
       body: SafeArea(
         child: Stack(
@@ -485,7 +505,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
               alignment: Alignment.topLeft,
               child: IconButton(
                 icon: Icon(Icons.arrow_back, color: AppColors.textSecondary),
-                onPressed: () => Navigator.maybePop(context),
+                onPressed: _exit,
               ),
             ),
             Center(
@@ -585,6 +605,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
