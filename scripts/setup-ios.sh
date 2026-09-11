@@ -46,6 +46,9 @@ echo "==> kukcalendar:// deep link (Google SSO return)"
 echo "==> flutter pub get"
 flutter pub get
 
+echo "==> App launcher icon (KukLabs 'K' — same mark as Android)"
+dart run flutter_launcher_icons -f flutter_launcher_icons_ios.yaml
+
 cat <<'DONE'
 
 ✅ iOS configured. Next:

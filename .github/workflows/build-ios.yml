@@ -74,6 +74,9 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Generate app launcher icon (KukLabs "K", same mark as Android)
+        run: dart run flutter_launcher_icons -f flutter_launcher_icons_ios.yaml
+
       - name: Build iOS (unsigned — compile verification)
         # Signing requires the Apple secrets (see header). Until they're set, this
         # proves the app compiles for iOS and produces Runner.app (NOT installable

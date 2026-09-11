@@ -1,0 +1,12 @@
+# iOS launcher icon — uses the SAME KukLabs mark as Android (assets/icon.png).
+# Kept separate from the pubspec `flutter_launcher_icons:` block (which is
+# android-only) because the Android and iOS CI builds each `flutter create` only
+# their own platform, so a single ios+android config would fail on the missing
+# folder. iOS icons can't carry alpha, so transparent corners are flattened onto
+# white (the mark already sits on a white ground).
+flutter_launcher_icons:
+  ios: true
+  android: false
+  image_path: "assets/icon.png"
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
