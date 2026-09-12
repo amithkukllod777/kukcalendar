@@ -259,6 +259,46 @@ class CalSync {
     await _onSignedIn(token.toString(), b['name']?.toString(), acct);
   }
 
+  // ── Google (native iOS sheet → same One Kuklabs Account) ──
+  /// Trade the Google ID token from the native sign-in sheet for the same Bearer
+  /// session directLogin issues, then bootstrap. Hits the native endpoint
+  /// (verifies the token's audience = the app's Google client id), NOT the
+  /// deep-link code flow's /app-exchange. Account keying is identical, so this
+  /// resolves to the SAME One-Kuklabs-Account as the deep-link flow.
+  Future<void> googleNativeExchange(String idToken, {String? name, String? email}) async {
+    final res = await _dio.postUri(
+      Uri.parse('$base/api/auth/google/native-exchange'),
+      data: {
+        'idToken': idToken,
+        if (name != null && name.isNotEmpty) 'name': name,
+        if (email != null && email.isNotEmpty) 'email': email,
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+    final b = _asJson(res.data);
+    final token = b is Map ? b['token'] : null;
+    if (token == null) {
+      final msg = (b is Map ? b['error'] : null)?.toString();
+      throw Exception((msg == null || msg.isEmpty)
+          ? 'Google sign-in failed. Please try again.'
+          : msg);
+    }
+    final acct = (b['email'] ?? b['name'])?.toString();
+    await _onSignedIn(token.toString(), b['name']?.toString(), acct);
+  }
+
+  // ── Native push (FCM) ──
+  /// Register this device's FCM registration token so the shared backend can
+  /// push to it (same `notifications.registerFcmToken` / `kuk_fcm_tokens` path
+  /// KukTask uses). Best-effort: needs a signed-in session and the personal
+  /// workspace; callers ignore failures so push never breaks the calendar.
+  Future<void> registerFcmToken(String token, {String platform = 'ios'}) async {
+    if (_token == null) return; // not signed in
+    if (_companyId == null) await _ensureCompany();
+    if (_companyId == null) return; // no workspace resolved yet
+    await _mutate('notifications.registerFcmToken', {'token': token, 'platform': platform});
+  }
+
   /// Create a new KukLabs account (step 1) — the server emails a 6-digit
   /// verification code to [email]; complete with [verifyOtp].
   Future<void> register({
