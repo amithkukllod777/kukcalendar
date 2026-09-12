@@ -53,9 +53,15 @@ cat > ios/Runner/Runner.entitlements <<'ENT'
 	<array>
 		<string>Default</string>
 	</array>
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>
 ENT
+# aps-environment enables Push Notifications (FCM). "development" is the Xcode
+# default and lets a debug build receive sandbox push; the App Store / TestFlight
+# distribution re-sign promotes it to "production" automatically. Automatic
+# signing enables the Push capability on the App ID during archive (paid team).
 # Anchor on `INFOPLIST_FILE = Runner/Info.plist;` — present only in the Runner
 # target's build configs, never RunnerTests — so the tests target is untouched.
 if ! grep -q "CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;" "$PBX"; then
@@ -98,6 +104,36 @@ echo "==> kukcalendar:// deep link (Google SSO return)"
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kukcalendar" "$PLIST" 2>/dev/null || true
 
+echo "==> Native Google Sign-In URL scheme (REVERSED_CLIENT_ID from GoogleService-Info.plist)"
+# google_sign_in returns to the app via this scheme after the native sheet.
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes array" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes:0 string com.googleusercontent.apps.453785771828-f9oujj4304q33iappec73ql1njqtqtmi" "$PLIST" 2>/dev/null || true
+
+echo "==> Remote-notification background mode (FCM)"
+/usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST" 2>/dev/null || true
+
+echo "==> Firebase (FCM push): bundle GoogleService-Info.plist into the Runner target"
+# The repo keeps only pubspec + lib + assets, so the committed config lives in
+# ios_config/ and is copied into the freshly-generated ios/Runner here, then
+# added to the Runner target's resources via the xcodeproj gem (bundled with
+# CocoaPods, which every iOS Flutter build already needs).
+cp ios_config/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+ruby - <<'RUBY'
+require 'xcodeproj'
+project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+target = project.targets.find { |t| t.name == 'Runner' }
+group  = project.main_group['Runner']
+unless group.files.any? { |f| f.display_name == 'GoogleService-Info.plist' }
+  ref = group.new_reference('GoogleService-Info.plist')
+  target.add_resources([ref])
+  project.save
+  puts 'Registered GoogleService-Info.plist in Runner target'
+else
+  puts 'GoogleService-Info.plist already registered'
+end
+RUBY
+
 echo "==> flutter pub get"
 flutter pub get
 
@@ -106,16 +142,21 @@ dart run flutter_launcher_icons -f flutter_launcher_icons_ios.yaml
 
 cat <<'DONE'
 
-✅ iOS configured (incl. Sign in with Apple entitlement). Next:
+✅ iOS configured (Sign in with Apple + Google Sign-In + Firebase FCM push). Next:
    1. open ios/Runner.xcworkspace
    2. Runner target → Signing & Capabilities → select your Team (automatic signing).
-      "Sign in with Apple" already appears — this script wrote Runner.entitlements
-      and wired it into the project. With a paid team, automatic signing enables the
-      capability on your App ID when it archives. (If signing complains that the App
-      ID lacks the capability, add it once at developer.apple.com → Identifiers →
-      com.kuklabs.calendar → Sign In with Apple, then re-archive. Required by Apple
-      guideline 4.8 because the app also offers Google login.)
-   3. Product → Archive → Distribute App → TestFlight (or App Store Connect)
+      "Sign in with Apple" and "Push Notifications" already appear — this script
+      wrote Runner.entitlements and wired it into the project. With a paid team,
+      automatic signing enables both capabilities on your App ID when it archives.
+      (If signing complains the App ID lacks a capability, add it once at
+      developer.apple.com → Identifiers → com.kuklabs.calendar → enable
+      "Sign In with Apple" and "Push Notifications", then re-archive.
+      Apple guideline 4.8 requires Apple sign-in because Google login is offered.)
+   3. ⚠️ Push (FCM) also needs an APNs Auth Key uploaded ONCE to the Firebase
+      project (kukchat-b6402) → Project settings → Cloud Messaging → APNs
+      Authentication Key. Without it iOS push is silent (Google/Apple login and
+      local reminders still work).
+   4. Product → Archive → Distribute App → TestFlight (or App Store Connect)
 
    Or from the CLI once signing is set in Xcode:
      flutter build ipa

@@ -76,6 +76,8 @@ jobs:
           	<array>
           		<string>Default</string>
           	</array>
+          	<key>aps-environment</key>
+          	<string>development</string>
           </dict>
           </plist>
           ENT
@@ -116,6 +118,29 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLName string com.kuklabs.calendar" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PLIST" || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes:0 string kukcalendar" "$PLIST" || true
+          # Native Google Sign-In returns via the REVERSED_CLIENT_ID scheme.
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:1:CFBundleURLSchemes:0 string com.googleusercontent.apps.453785771828-f9oujj4304q33iappec73ql1njqtqtmi" "$PLIST" || true
+          # Remote-notification background mode (FCM).
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string remote-notification" "$PLIST" || true
+          # Firebase (FCM push): bundle the committed GoogleService-Info.plist into
+          # the freshly-generated Runner target (xcodeproj gem ships with CocoaPods).
+          cp ios_config/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+          ruby - <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          target = project.targets.find { |t| t.name == 'Runner' }
+          group  = project.main_group['Runner']
+          unless group.files.any? { |f| f.display_name == 'GoogleService-Info.plist' }
+            ref = group.new_reference('GoogleService-Info.plist')
+            target.add_resources([ref])
+            project.save
+            puts 'Registered GoogleService-Info.plist in Runner target'
+          else
+            puts 'GoogleService-Info.plist already registered'
+          end
+          RUBY
           echo "Info.plist + bundle id configured for iOS"
 
       - name: Install dependencies

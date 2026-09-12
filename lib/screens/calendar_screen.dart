@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../widgets/ui_kit.dart';
 import '../app_info.dart';
 import '../cal_sync.dart';
+import '../push.dart';
 import '../device_calendar_overlay.dart';
 import '../notifications.dart';
 import '../reminder_logic.dart' as rl;
@@ -151,7 +152,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     // Ask for calendar permission AFTER the first frame — never during initState,
     // so the UI is up before the OS permission dialog (and a cold-start crash on
     // a misconfigured build can't blank the launch).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initDeviceCal());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initDeviceCal();
+      // Firebase/FCM push (iOS only, guarded inside): request permission after
+      // the first frame and register this device's token if already signed in.
+      Push.init();
+    });
     _initSync();
     appVersionString().then((v) {
       if (mounted) setState(() => _version = v);
@@ -290,7 +296,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final ok = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => const CalendarLoginScreen()));
     if (mounted) setState(() {});
-    if (ok == true) await _syncNow();
+    if (ok == true) {
+      await _syncNow();
+      // Register this device's FCM token now that a session + workspace exist.
+      Push.init();
+      Push.syncToken();
+    }
   }
 
   Future<void> _signOut() async {

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../apple_auth.dart';
 import '../cal_sync.dart';
 import '../google_auth.dart';
+import '../google_native.dart';
 import 'calendar_screen.dart';
 import '../kuklabs/auth_messages.dart';
 import '../kuklabs/auth_tokens.dart';
@@ -333,6 +334,26 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   // logo. Rendered only when the server reports OAuth is configured.
   // Sign in with Apple (Apple HIG button). Cancel = silent; other failures map
   // through the friendly catalogue like every other auth error.
+  // Continue with Google on iOS via the NATIVE sheet (google_sign_in) → the
+  // shared Kuklabs session (same One Kuklabs Account). A cancelled sheet is
+  // silent; genuine failures map through the friendly catalogue. Android keeps
+  // the deep-link flow (GoogleAuth) — see the button below.
+  Future<void> _signInGoogleNative() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      final ok = await GoogleNativeAuth.instance.signIn();
+      if (ok && mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) setState(() => _error = AuthMessages.friendly(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _signInApple() async {
     setState(() {
       _busy = true;
@@ -354,18 +375,26 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
   }
 
   Widget _socialBlock() {
-    if (!_googleEnabled && !_appleEnabled) return const SizedBox.shrink();
+    // Google shows via the native sheet on iOS (needs no server OAuth config —
+    // the bundled GoogleService-Info.plist provides it); on Android it shows only
+    // when the server reports OAuth is configured (deep-link flow).
+    final showGoogle = _googleEnabled || Platform.isIOS;
+    if (!showGoogle && !_appleEnabled) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 20),
         _orDivider(),
         const SizedBox(height: 20),
-        if (_googleEnabled)
+        if (showGoogle)
           SizedBox(
             height: AuthTokens.googleButtonHeight,
             child: OutlinedButton(
-              onPressed: _busy ? null : () => GoogleAuth.instance.signIn(),
+              onPressed: _busy
+                  ? null
+                  : () => Platform.isIOS
+                      ? _signInGoogleNative()
+                      : GoogleAuth.instance.signIn(),
               style: OutlinedButton.styleFrom(
                 backgroundColor: AppColors.surface,
                 side: BorderSide(color: AppColors.border),
@@ -385,7 +414,7 @@ class _CalendarLoginScreenState extends State<CalendarLoginScreen> {
             ),
           ),
         if (_appleEnabled) ...[
-          if (_googleEnabled) const SizedBox(height: 12),
+          if (showGoogle) const SizedBox(height: 12),
           SizedBox(
             height: AuthTokens.googleButtonHeight,
             child: SignInWithAppleButton(
